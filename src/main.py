@@ -132,7 +132,7 @@ class KeyTableModel(QtCore.QAbstractTableModel):
         process = subprocess.Popen(getKeys, shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         output = process.communicate()
         code = process.returncode
-        f = StringIO(output[0])
+        f = StringIO(output[0].decode())
         if (code != 0):
             raise Exception("Failed to get key listing (Code: " + str(code) + ") -- " + str(output[1]))
         self.data = []
