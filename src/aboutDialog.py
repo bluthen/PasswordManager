@@ -1,34 +1,36 @@
-from PyQt4 import QtGui, QtCore
+from PyQt5 import QtCore, QtGui, QtWidgets
 
 from simpleDialogs import DialogBase
+
 
 class AboutDialog(DialogBase):
     def __init__(self, parent):
         DialogBase.__init__(self, "About PasswordManager", cancel=True, parent=parent, modal=True)
-        w = QtGui.QWidget()
-        layout = QtGui.QVBoxLayout(w)
-        label1=QtGui.QLabel("PasswordManager 0.03")
-        label1.font().setPointSize(label1.font().pointSize()*2)
+        w = QtWidgets.QWidget()
+        layout = QtWidgets.QVBoxLayout(w)
+        label1 = QtWidgets.QLabel("PasswordManager 0.04")
+        label1.font().setPointSize(label1.font().pointSize() * 2)
         label1.font().setBold(True)
         layout.addWidget(label1)
-        tabWidget = QtGui.QTabWidget()
+        tabWidget = QtWidgets.QTabWidget()
         layout.addWidget(tabWidget)
-        aboutLabel=QtGui.QLabel("\n\nPasswordManager software\n\nCopyright (C) 2010 Russell Valentine\n\nruss@coldstonelabs.org")
+        aboutLabel = QtWidgets.QLabel(
+            "\n\nPasswordManager software\n\nCopyright (C) 2010,2020 Russell Valentine\n\nruss@coldstonelabs.org")
         aboutLabel.setAlignment(QtCore.Qt.AlignHCenter)
-        tabWidget.addTab(aboutLabel , "About")
-        licenseWidget=LicenseWidget()
+        tabWidget.addTab(aboutLabel, "About")
+        licenseWidget = LicenseWidget()
         tabWidget.addTab(licenseWidget, "License")
         self.addWidget(w)
         self.setCancelButtonText("Close")
 
 
-class LicenseWidget(QtGui.QTextEdit):
+class LicenseWidget(QtWidgets.QTextEdit):
     def __init__(self):
-        QtGui.QTextEdit.__init__(self)
+        QtWidgets.QTextEdit.__init__(self)
         self.setReadOnly(True)
         self.setFontFamily("Luxi Mono")
-        self.setLineWrapMode(QtGui.QTextEdit.NoWrap)
-        license="""Copyright (c) 2010, Russell Valentine
+        self.setLineWrapMode(QtWidgets.QTextEdit.NoWrap)
+        license = """Copyright (c) 2010,2020 Russell Valentine
 
 This program is distributed under the terms of the GPL v2.
 
@@ -312,4 +314,3 @@ PROGRAMS), EVEN IF SUCH HOLDER OR OTHER PARTY HAS BEEN ADVISED OF THE
 POSSIBILITY OF SUCH DAMAGES.
 """
         self.setText(license)
-
