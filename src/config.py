@@ -49,7 +49,7 @@ class Config:
             self.con.beginGroup("General Options")
             size = self.con.value("Geometry")
             self.con.endGroup()
-            if size.width() < 100:
+            if size is None or size.width() < 100:
                 return QtCore.QSize(400, 400)
             return size
 
