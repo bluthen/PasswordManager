@@ -127,13 +127,13 @@ class KeyTableModel(QtCore.QAbstractTableModel):
 
     def refresh(self):
         self.layoutAboutToBeChanged.emit()
-        getKeys = "$g --no-tty -K".split(' ')
+        getKeys = "$g --no-tty -K --keyid-format=short".split(' ')
         misc.replace_gpg_symbols(getKeys)
         process = subprocess.Popen(getKeys, shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         output = process.communicate()
         code = process.returncode
         f = StringIO(output[0].decode())
-        if (code != 0):
+        if code != 0:
             raise Exception("Failed to get key listing (Code: " + str(code) + ") -- " + str(output[1]))
         self.data = []
         foundKey = False
@@ -142,6 +142,7 @@ class KeyTableModel(QtCore.QAbstractTableModel):
         for line in f:
             line = line.rstrip()
             if not foundKey and line[0:3] == "sec":
+                # Is next line
                 m = re.search("/(\w*) ", line)
                 key = m.group(1)
                 aline = line
@@ -152,7 +153,7 @@ class KeyTableModel(QtCore.QAbstractTableModel):
                 key = ""
                 aline = ""
                 foundKey = False
-            elif (foundKey):
+            elif foundKey:
                 aline += "\n" + line
         if len(key) != 0:
             self.data.append([aline, key])

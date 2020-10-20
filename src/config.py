@@ -24,7 +24,7 @@ class Config:
             if not self.gpgPath or len(self.gpgPath) == 0:
                 self.openLast = True
                 self.openLastFile = ""
-                self.gpgPath = "/usr/bin/gpg"
+                self.gpgPath = "/usr/bin/gpg2"
                 self.gpgKey = ""
                 self.encCommand = "$g --encrypt --no-tty -r $k -o -"
                 self.decCommand = "$g --no-tty -d $f"
