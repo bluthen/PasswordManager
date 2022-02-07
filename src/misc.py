@@ -13,6 +13,16 @@ def replace_gpg_symbols(gpglist, filename=""):
             gpglist[i] = Config().getGPGKey()
 
 
+def replace_open_save_symbols(commandlist, filename=""):
+    dirname = os.path.dirname(os.path.abspath(filename))
+    for i in range(len(commandlist)):
+        if commandlist[i] == "$f":
+            commandlist[i] = filename
+        if "$d" in commandlist[i]:
+            commandlist[i] = commandlist[i].replace("$d", dirname)
+
+
+
 def get_extension(filename):
     ext = os.path.splitext(str(filename))
     return ext[1].lower()

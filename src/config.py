@@ -13,6 +13,8 @@ class Config:
             self.openLastFile = self.getKey("OpenLastFile")
             self.gpgPath = self.getKey("GPGPath")
             self.gpgKey = self.getKey("GPGKey")
+            self.preOpenCommand = self.getKey("PreOpenCommand")
+            self.postSaveCommand = self.getKey("PostSaveCommand")
             self.encCommand = self.getKey("EncCommand")
             self.decCommand = self.getKey("DecCommand")
             self.csvDelimiter = self.getKey("CSVDelimiter")
@@ -124,6 +126,20 @@ class Config:
 
         def getDecCommand(self):
             return self.decCommand
+
+        def setPreOpenCommand(self, cmd):
+            self.preOpenCommand = str(cmd)
+            self.setKey("PreOpenCommand", cmd)
+
+        def setPostSaveCommand(self, cmd):
+            self.postSaveCommand = str(cmd)
+            self.setKey("PostSaveCommand", cmd)
+
+        def getPreOpenCommand(self):
+            return self.preOpenCommand
+
+        def getPostSaveCommand(self):
+            return self.postSaveCommand
 
         def getCSVDelimiter(self):
             return self.csvDelimiter

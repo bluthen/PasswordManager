@@ -50,6 +50,11 @@ class Document:
         self.setModified()
 
     def load(self, filename):
+        preOpen = Config().getPreOpenCommand()
+        if preOpen.strip() != '':
+            preOpen = preOpen.split(' ')
+            misc.replace_open_save_symbols(preOpen, filename)
+            subprocess.check_call(preOpen, shell=False)
         # if encrypted
         # gpg -d filename | prog
         decrypt = Config().getDecCommand().split(' ')
@@ -109,6 +114,11 @@ class Document:
         self.modified = False
         if Config().getOpenLast():
             Config().setOpenLastFile(self.file)
+        postSave = Config().getPostSaveCommand()
+        if postSave.strip() != '':
+            postSave = postSave.split(' ')
+            misc.replace_open_save_symbols(postSave, filename)
+            subprocess.check_call(postSave, shell=False)
 
     def setData(self, data):
         self.data = data
@@ -283,6 +293,21 @@ class AdvancedConfigWidget(QtWidgets.QWidget):
         eboxLayout.addWidget(self.decCommand, 2, 1)
         layout.addWidget(encryptionBox)
 
+
+        openSaveBox = QtWidgets.QGroupBox("Open/Save commands")
+        openSaveLayout = QtWidgets.QGridLayout()
+        openSaveBox.setLayout(openSaveLayout)
+        openSaveLabel = QtWidgets.QLabel("$f - file, $d - file directory")
+        openSaveLabel.setWordWrap(True)
+        openSaveLayout.addWidget(openSaveLabel, 0, 0, 1, 2)
+        openSaveLayout.addWidget(QtWidgets.QLabel("Pre-Open Command:"), 1, 0)
+        self.preOpenCommand = QtWidgets.QLineEdit()
+        openSaveLayout.addWidget(self.preOpenCommand, 1, 1)
+        openSaveLayout.addWidget(QtWidgets.QLabel("Post-SaveCommand:"), 2, 0)
+        self.postSaveCommand = QtWidgets.QLineEdit()
+        openSaveLayout.addWidget(self.postSaveCommand, 2, 1)
+        layout.addWidget(openSaveBox)
+
         csvBox = QtWidgets.QGroupBox("CSV")
         cboxLayout = QtWidgets.QGridLayout()
         csvBox.setLayout(cboxLayout)
@@ -322,6 +347,8 @@ class AdvancedConfigWidget(QtWidgets.QWidget):
         self.delimiterTab.setChecked(Config().getCSVDelimiterTab())
         self.quoteCheck.setChecked(Config().getCSVQuoteCheck())
         self.quote.setText(Config().getCSVQuote())
+        self.preOpenCommand.setText(Config().getPreOpenCommand())
+        self.postSaveCommand.setText(Config().getPostSaveCommand())
 
     def saveConfig(self):
         Config().setEncCommand(self.encCommand.text())
@@ -330,6 +357,8 @@ class AdvancedConfigWidget(QtWidgets.QWidget):
         Config().setCSVDelimiterTab(self.delimiterTab.isChecked())
         Config().setCSVQuoteCheck(self.quoteCheck.isChecked())
         Config().setCSVQuote(self.quote.text())
+        Config().setPreOpenCommand(self.preOpenCommand.text())
+        Config().setPostSaveCommand(self.postSaveCommand.text())
 
 
 class GeneralConfigWidget(QtWidgets.QWidget):
