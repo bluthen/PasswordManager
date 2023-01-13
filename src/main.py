@@ -54,7 +54,12 @@ class Document:
         if preOpen.strip() != '':
             preOpen = preOpen.split(' ')
             misc.replace_open_save_symbols(preOpen, filename)
-            subprocess.check_call(preOpen, shell=False)
+            try:
+                subprocess.check_call(preOpen, shell=False)
+            except Exception as e:
+                ok = OKDialog(None, "Problem with pre-open.", str(e))
+                traceback.print_exc(file=sys.stdout)
+                ok.exec()
         # if encrypted
         # gpg -d filename | prog
         decrypt = Config().getDecCommand().split(' ')
@@ -118,7 +123,12 @@ class Document:
         if postSave.strip() != '':
             postSave = postSave.split(' ')
             misc.replace_open_save_symbols(postSave, filename)
-            subprocess.check_call(postSave, shell=False)
+            try:
+                subprocess.check_call(postSave, shell=False)
+            except Exception as e:
+                ok = OKDialog(None, "Problem with post-save.", str(e))
+                traceback.print_exc(file=sys.stdout)
+                ok.exec()
 
     def setData(self, data):
         self.data = data
@@ -414,7 +424,7 @@ class GeneralConfigWidget(QtWidgets.QWidget):
 
 class ConfigDialog(DialogBase):
     def __init__(self, parent):
-        DialogBase.__init__(self, "Config", ok=True, cancel=True, modal=False, parent=parent)
+        super().__init__("Config", ok=True, cancel=True, modal=False, parent=parent)
 
         tabWidget = QtWidgets.QTabWidget()
         self.genTab = GeneralConfigWidget()

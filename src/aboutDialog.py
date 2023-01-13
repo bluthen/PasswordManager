@@ -15,7 +15,7 @@ class AboutDialog(DialogBase):
         tabWidget = QtWidgets.QTabWidget()
         layout.addWidget(tabWidget)
         aboutLabel = QtWidgets.QLabel(
-            "\n\nPasswordManager software\n\nCopyright (C) 2010,2020,2022 Russell Valentine\n\nruss@coldstonelabs.org")
+            "\n\nPasswordManager software\n\nCopyright (C) 2010,2020,2022,2023 Russell Valentine\n\nruss@coldstonelabs.org")
         aboutLabel.setAlignment(QtCore.Qt.AlignHCenter)
         tabWidget.addTab(aboutLabel, "About")
         licenseWidget = LicenseWidget()

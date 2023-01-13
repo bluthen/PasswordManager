@@ -3,7 +3,7 @@ from PyQt5 import QtCore, QtWidgets
 
 class DialogBase(QtWidgets.QDialog):
     def __init__(self, title, ok=False, cancel=False, apply=False, user1=False, user2=False, modal=False, parent=None):
-        QtWidgets.QDialog.__init__(self, parent)
+        super().__init__(parent=parent)
         self.setModal(int(modal))
         self.grid = QtWidgets.QGridLayout(self)
         w = QtWidgets.QWidget()
@@ -75,7 +75,7 @@ class DialogBase(QtWidgets.QDialog):
 
 class OKDialog(DialogBase):
     def __init__(self, parent, caption, message):
-        DialogBase.__init__(self, caption, ok=True, modal=True, parent=parent)
+        super().__init__(caption, ok=True, modal=True, parent=parent)
 
         label = QtWidgets.QLabel(message)
         self.addWidget(label)
@@ -86,7 +86,7 @@ class ConfirmDialog(DialogBase):
     no = QtCore.pyqtSignal()
 
     def __init__(self, parent, title, question):
-        DialogBase.__init__(self, title, ok=True, cancel=True, modal=True, parent=parent)
+        super().__init__(title, ok=True, cancel=True, modal=True, parent=parent)
 
         self.okButton.setText("Yes")
         self.cancelButton.setText("No")
