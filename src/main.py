@@ -34,25 +34,27 @@ class Document:
         return self.file
 
     def importCSV(self, filename, delim, quote):
-        f = open(filename)
-        if quote is not None:
-            csvReader = csv.reader(f, delimiter=str(delim), quotechar=str(quote))
-        else:
-            csvReader = csv.reader(f, delimiter=str(delim), quoting=csv.QUOTE_NONE)
-        mydata = []
-        for row in csvReader:
-            while len(row) < 4:
-                row.append("")
-            mydata.append(row)
-        self.setData(mydata)
-        if f:
-            f.close()
+        with open(filename, "r", newline="", encoding="utf-8", errors="replace") as f:
+            if quote is not None and len(str(quote)) == 1:
+                csvReader = csv.reader(
+                    f, delimiter=str(delim), quotechar=str(quote), escapechar="\\"
+                )
+            else:
+                csvReader = csv.reader(
+                    f, delimiter=str(delim), quoting=csv.QUOTE_NONE, escapechar="\\"
+                )
+            mydata = []
+            for row in csvReader:
+                while len(row) < 4:
+                    row.append("")
+                mydata.append(row)
+            self.setData(mydata)
         self.setModified()
 
     def load(self, filename):
         preOpen = Config().getPreOpenCommand()
-        if preOpen.strip() != '':
-            preOpen = preOpen.split(' ')
+        if preOpen.strip() != "":
+            preOpen = preOpen.split(" ")
             misc.replace_open_save_symbols(preOpen, filename)
             try:
                 subprocess.check_call(preOpen, shell=False)
@@ -62,22 +64,30 @@ class Document:
                 ok.exec()
         # if encrypted
         # gpg -d filename | prog
-        decrypt = Config().getDecCommand().split(' ')
+        decrypt = Config().getDecCommand().split(" ")
         misc.replace_gpg_symbols(decrypt, filename)
-        process = subprocess.Popen(decrypt, shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        process = subprocess.Popen(
+            decrypt, shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
         output = process.communicate()
         code = process.returncode
         f = StringIO(output[0].decode())
         if code != 0:
-            raise Exception("Failed to decrypt file (Code: " + str(code) + ") -- " + str(output[1]))
+            raise Exception(
+                "Failed to decrypt file (Code: " + str(code) + ") -- " + str(output[1])
+            )
         if Config().getCSVDelimiterTab():
             delim = "\t"
         else:
             delim = Config().getCSVDelimiter()
-        if Config().getCSVQuoteCheck():
-            csvReader = csv.reader(f, delimiter=delim, quotechar=Config().getCSVQuote())
+        if Config().getCSVQuoteCheck() and len(Config().getCSVQuote()) == 1:
+            csvReader = csv.reader(
+                f, delimiter=delim, quotechar=Config().getCSVQuote(), escapechar="\\"
+            )
         else:
-            csvReader = csv.reader(f, delimiter=delim, quoting=csv.QUOTE_NONE)
+            csvReader = csv.reader(
+                f, delimiter=delim, quoting=csv.QUOTE_NONE, escapechar="\\"
+            )
         mydata = []
         for row in csvReader:
             while len(row) < 4:
@@ -94,24 +104,33 @@ class Document:
             delim = "\t"
         else:
             delim = str(Config().getCSVDelimiter())
-        if Config().getCSVQuoteCheck():
-            csvWriter = csv.writer(f, delimiter=delim, quotechar=Config().getCSVQuote())
+        if Config().getCSVQuoteCheck() and len(Config().getCSVQuote()) == 1:
+            csvWriter = csv.writer(
+                f, delimiter=delim, quotechar=Config().getCSVQuote(), escapechar="\\"
+            )
         else:
-            csvWriter = csv.writer(f, delimiter=delim, quoting=csv.QUOTE_NONE)
+            csvWriter = csv.writer(
+                f, delimiter=delim, quoting=csv.QUOTE_NONE, escapechar="\\"
+            )
         csvWriter.writerows(self.getData())
         output = f.getvalue()
         f.close()
         # cat file | gpg -a --encrypt -r keyid -o - > newfile
-        encrypt = Config().getEncCommand().split(' ')
+        encrypt = Config().getEncCommand().split(" ")
         misc.replace_gpg_symbols(encrypt, None)
-        process = subprocess.Popen(encrypt, shell=False, stdout=subprocess.PIPE, stdin=subprocess.PIPE,
-                                   stderr=subprocess.PIPE)
+        process = subprocess.Popen(
+            encrypt,
+            shell=False,
+            stdout=subprocess.PIPE,
+            stdin=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
         noutput = process.communicate(output.encode())
         if process.returncode != 0:
             raise Exception("Failed to encrypt data.")
 
         # Write actual file now
-        f = open(filename, 'wb')
+        f = open(filename, "wb")
         # XXX: make backup
         f.write(noutput[0])
         f.close()
@@ -120,8 +139,8 @@ class Document:
         if Config().getOpenLast():
             Config().setOpenLastFile(self.file)
         postSave = Config().getPostSaveCommand()
-        if postSave.strip() != '':
-            postSave = postSave.split(' ')
+        if postSave.strip() != "":
+            postSave = postSave.split(" ")
             misc.replace_open_save_symbols(postSave, filename)
             try:
                 subprocess.check_call(postSave, shell=False)
@@ -147,14 +166,21 @@ class KeyTableModel(QtCore.QAbstractTableModel):
 
     def refresh(self):
         self.layoutAboutToBeChanged.emit()
-        getKeys = "$g --no-tty -K --keyid-format=short".split(' ')
+        getKeys = "$g --no-tty -K --keyid-format=short".split(" ")
         misc.replace_gpg_symbols(getKeys)
-        process = subprocess.Popen(getKeys, shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        process = subprocess.Popen(
+            getKeys, shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
         output = process.communicate()
         code = process.returncode
         f = StringIO(output[0].decode())
         if code != 0:
-            raise Exception("Failed to get key listing (Code: " + str(code) + ") -- " + str(output[1]))
+            raise Exception(
+                "Failed to get key listing (Code: "
+                + str(code)
+                + ") -- "
+                + str(output[1])
+            )
         self.data = []
         foundKey = False
         key = ""
@@ -163,7 +189,7 @@ class KeyTableModel(QtCore.QAbstractTableModel):
             line = line.rstrip()
             if not foundKey and line[0:3] == "sec":
                 # Is next line
-                m = re.search("/(\w*) ", line)
+                m = re.search(r"/(\w*) ", line)
                 key = m.group(1)
                 aline = line
                 foundKey = True
@@ -202,7 +228,9 @@ class KeyTableModel(QtCore.QAbstractTableModel):
 
 class KeyDialog(DialogBase):
     def __init__(self, parent):
-        DialogBase.__init__(self, "Key Selector", ok=True, cancel=True, modal=True, parent=parent)
+        DialogBase.__init__(
+            self, "Key Selector", ok=True, cancel=True, modal=True, parent=parent
+        )
 
         self.parent = parent
 
@@ -215,7 +243,9 @@ class KeyDialog(DialogBase):
         self.table.setSortingEnabled(False)
         self.table.setCornerButtonEnabled(False)
         self.table.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
-        self.table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(
+            QtWidgets.QHeaderView.Stretch
+        )
         keyLayout.addWidget(self.table, 0, 0)
         self.addWidget(keyBox)
 
@@ -255,11 +285,15 @@ class MainTableModel(QtCore.QAbstractTableModel):
             try:
                 if index.column() == 2:  # Password column
                     if self.main.viewPasswords.isChecked():
-                        return QtCore.QVariant(self.document.getData()[index.row()][index.column()])
+                        return QtCore.QVariant(
+                            self.document.getData()[index.row()][index.column()]
+                        )
                     else:
                         return QtCore.QVariant("****")
                 else:
-                    return QtCore.QVariant(self.document.getData()[index.row()][index.column()])
+                    return QtCore.QVariant(
+                        self.document.getData()[index.row()][index.column()]
+                    )
             except:
                 return QtCore.QVariant()
         return QtCore.QVariant()
@@ -278,8 +312,13 @@ class MainTableModel(QtCore.QAbstractTableModel):
         if self.document.getData() is not None:
             self.layoutAboutToBeChanged.emit()
             # self.document.setData(sorted(self.document.getData(), key=operator.itemgetter(column), reverse=(order == QtCore.Qt.DescendingOrder)))
-            self.document.setData(sorted(self.document.getData(), key=lambda a: a[column].lower(),
-                                         reverse=(order != QtCore.Qt.DescendingOrder)))
+            self.document.setData(
+                sorted(
+                    self.document.getData(),
+                    key=lambda a: a[column].lower(),
+                    reverse=(order != QtCore.Qt.DescendingOrder),
+                )
+            )
             self.layoutChanged.emit()
 
 
@@ -302,7 +341,6 @@ class AdvancedConfigWidget(QtWidgets.QWidget):
         self.decCommand = QtWidgets.QLineEdit()
         eboxLayout.addWidget(self.decCommand, 2, 1)
         layout.addWidget(encryptionBox)
-
 
         openSaveBox = QtWidgets.QGroupBox("Open/Save commands")
         openSaveLayout = QtWidgets.QGridLayout()
@@ -380,7 +418,9 @@ class GeneralConfigWidget(QtWidgets.QWidget):
         settingsBox = QtWidgets.QGroupBox("Settings")
         boxLayout = QtWidgets.QGridLayout()
         settingsBox.setLayout(boxLayout)
-        self.autoOpen = QtWidgets.QCheckBox("Try to open last saved document on startup.")
+        self.autoOpen = QtWidgets.QCheckBox(
+            "Try to open last saved document on startup."
+        )
         boxLayout.addWidget(self.autoOpen, 0, 0, 1, 3)
         boxLayout.addWidget(QtWidgets.QLabel("GPG Path:"), 1, 0)
         self.gpgPath = QtWidgets.QLineEdit()
@@ -399,8 +439,14 @@ class GeneralConfigWidget(QtWidgets.QWidget):
         layout.addWidget(settingsBox)
 
     def slotBrowseGPGPath(self):
-        fileName = QtWidgets.QFileDialog.getOpenFileName(self, "GPG Location", "", "GPG Executable (gpg*)", None,
-                                                         QtWidgets.QFileDialog.DontUseNativeDialog)[0]
+        fileName = QtWidgets.QFileDialog.getOpenFileName(
+            self,
+            "GPG Location",
+            "",
+            "GPG Executable (gpg*)",
+            None,
+            QtWidgets.QFileDialog.DontUseNativeDialog,
+        )[0]
         if fileName is None or len(fileName) == 0:
             return
         self.gpgPath.setText(fileName)
@@ -453,20 +499,26 @@ class ConfigDialog(DialogBase):
 
 class DelDialog(DialogBase):
     def __init__(self, parent, document):
-        DialogBase.__init__(self, "Delete Entry", ok=True, cancel=True, modal=True, parent=parent)
+        DialogBase.__init__(
+            self, "Delete Entry", ok=True, cancel=True, modal=True, parent=parent
+        )
         self.document = document
         self.okButton.setText("Yes")
         self.cancelButton.setText("No")
-        self.label = QtWidgets.QLabel("Are you sure you want to remove \"Entryname\"?")
+        self.label = QtWidgets.QLabel('Are you sure you want to remove "Entryname"?')
         self.addWidget(self.label)
 
     def setRow(self, row):
-        self.label.setText("Are you sure you want to remove \"" + self.document.getData()[row][0] + "\"?")
+        self.label.setText(
+            'Are you sure you want to remove "' + self.document.getData()[row][0] + '"?'
+        )
 
 
 class FindDialog(DialogBase):
     def __init__(self, parent, table, document):
-        DialogBase.__init__(self, "Find", ok=False, cancel=True, modal=False, parent=parent)
+        DialogBase.__init__(
+            self, "Find", ok=False, cancel=True, modal=False, parent=parent
+        )
 
         self.table = table
         self.document = document
@@ -558,7 +610,11 @@ class FindDialog(DialogBase):
                     return
         # At end, start at top of bottom
         self.lastText = None
-        ok = OKDialog(self, "Find End", "At end of search, next search will start at the beginning.")
+        ok = OKDialog(
+            self,
+            "Find End",
+            "At end of search, next search will start at the beginning.",
+        )
         ok.show()
 
     def slotPrevious(self):
@@ -567,7 +623,14 @@ class FindDialog(DialogBase):
 
 class ImportCSVConfirmDialog(DialogBase):
     def __init__(self, parent, document, model):
-        DialogBase.__init__(self, "Import without saving?", ok=True, cancel=True, modal=True, parent=parent)
+        DialogBase.__init__(
+            self,
+            "Import without saving?",
+            ok=True,
+            cancel=True,
+            modal=True,
+            parent=parent,
+        )
 
         self.document = document
         self.model = model
@@ -607,7 +670,9 @@ class ImportCSVConfirmDialog(DialogBase):
 
 class ImportCSVDialog(DialogBase):
     def __init__(self, parent, document, model):
-        DialogBase.__init__(self, "Import CSV", ok=True, cancel=True, modal=True, parent=parent)
+        DialogBase.__init__(
+            self, "Import CSV", ok=True, cancel=True, modal=True, parent=parent
+        )
 
         self.document = document
         self.model = model
@@ -634,7 +699,7 @@ class ImportCSVDialog(DialogBase):
         self.quoteCheck.toggled.connect(self.slotQuoteCheck)
         cboxLayout.addWidget(self.quoteCheck, 2, 0)
         self.quote = QtWidgets.QLineEdit()
-        self.quote.setText("\"")
+        self.quote.setText('"')
         cboxLayout.addWidget(self.quote, 2, 1, 1, 2)
 
         self.file = None
@@ -656,7 +721,7 @@ class ImportCSVDialog(DialogBase):
 
     def reset(self):
         self.quoteCheck.setEnabled(True)
-        self.quote.setText("\"")
+        self.quote.setText('"')
         self.delimiter.setText(",")
         self.delimiterOther.setEnabled(True)
 
@@ -683,7 +748,9 @@ class ImportCSVDialog(DialogBase):
 
 class EditDialog(DialogBase):
     def __init__(self, parent, document, model):
-        DialogBase.__init__(self, "New/Edit", ok=True, cancel=True, modal=True, parent=parent)
+        DialogBase.__init__(
+            self, "New/Edit", ok=True, cancel=True, modal=True, parent=parent
+        )
         self.document = document
         self.model = model
         entryBox = QtWidgets.QGroupBox("Entry")
@@ -731,7 +798,7 @@ class EditDialog(DialogBase):
         self.password.setText(passwordGenerator.generate_password())
 
     def slotShowCheck(self, checked):
-        if (checked):
+        if checked:
             self.password.setEchoMode(QtWidgets.QLineEdit.Normal)
         else:
             self.password.setEchoMode(QtWidgets.QLineEdit.PasswordEchoOnEdit)
@@ -741,7 +808,12 @@ class EditDialog(DialogBase):
         self.reject()
 
     def slotOk(self):
-        line = [str(self.name.text()), str(self.username.text()), str(self.password.text()), str(self.comment.text())]
+        line = [
+            str(self.name.text()),
+            str(self.username.text()),
+            str(self.password.text()),
+            str(self.comment.text()),
+        ]
         if self.row is None:
             self.document.getData().append(line)
         else:
@@ -760,57 +832,97 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setWindowTitle("Password Manager")
 
         self.fileMenu = self.menuBar().addMenu("&File")
-        self.fileOpen = QtWidgets.QAction("&Open", self.fileMenu, shortcut=QtGui.QKeySequence.Open,
-                                          triggered=self.slotFileOpen)
+        self.fileOpen = QtWidgets.QAction(
+            "&Open",
+            self.fileMenu,
+            shortcut=QtGui.QKeySequence.Open,
+            triggered=self.slotFileOpen,
+        )
         self.fileMenu.addAction(self.fileOpen)
-        self.fileSave = QtWidgets.QAction("&Save", self.fileMenu, shortcut=QtGui.QKeySequence.Save,
-                                          triggered=self.slotFileSave)
+        self.fileSave = QtWidgets.QAction(
+            "&Save",
+            self.fileMenu,
+            shortcut=QtGui.QKeySequence.Save,
+            triggered=self.slotFileSave,
+        )
         self.fileMenu.addAction(self.fileSave)
-        self.fileSaveAs = QtWidgets.QAction("Save &As...", self.fileMenu, shortcut=QtGui.QKeySequence.SaveAs,
-                                            triggered=self.slotFileSaveAs)
+        self.fileSaveAs = QtWidgets.QAction(
+            "Save &As...",
+            self.fileMenu,
+            shortcut=QtGui.QKeySequence.SaveAs,
+            triggered=self.slotFileSaveAs,
+        )
         self.fileMenu.addAction(self.fileSaveAs)
         self.fileMenu.addSeparator()
-        self.fileImportCSV = QtWidgets.QAction("&Import CSV...", self.fileMenu, triggered=self.slotFileImportCSV)
+        self.fileImportCSV = QtWidgets.QAction(
+            "&Import CSV...", self.fileMenu, triggered=self.slotFileImportCSV
+        )
         self.fileMenu.addAction(self.fileImportCSV)
         self.fileMenu.addSeparator()
-        self.fileSettings = QtWidgets.QAction("S&ettings", self.fileMenu, triggered=self.slotSettings)
+        self.fileSettings = QtWidgets.QAction(
+            "S&ettings", self.fileMenu, triggered=self.slotSettings
+        )
         self.fileMenu.addAction(self.fileSettings)
         self.fileMenu.addSeparator()
-        self.fileQuit = QtWidgets.QAction("&Quit", self.fileMenu, shortcut=QtGui.QKeySequence.mnemonic("&Quit"),
-                                          triggered=self.slotQuit)
+        self.fileQuit = QtWidgets.QAction(
+            "&Quit",
+            self.fileMenu,
+            shortcut=QtGui.QKeySequence.mnemonic("&Quit"),
+            triggered=self.slotQuit,
+        )
         self.fileMenu.addAction(self.fileQuit)
 
         self.viewMenu = self.menuBar().addMenu("&View")
-        self.viewPasswords = QtWidgets.QAction("Show &Passwords", self.viewMenu, triggered=self.slotViewPasswords)
+        self.viewPasswords = QtWidgets.QAction(
+            "Show &Passwords", self.viewMenu, triggered=self.slotViewPasswords
+        )
         self.viewPasswords.setCheckable(True)
         self.viewMenu.addAction(self.viewPasswords)
         self.viewMenu.addSeparator()
-        self.viewFind = QtWidgets.QAction("Find...", self.viewMenu, triggered=self.slotViewFind)
+        self.viewFind = QtWidgets.QAction(
+            "Find...", self.viewMenu, triggered=self.slotViewFind
+        )
         self.viewMenu.addAction(self.viewFind)
 
         self.entryMenu = self.menuBar().addMenu("&Entry")
         self.entryMenu.aboutToShow.connect(self.slotEntryMenuAboutToShow)
-        self.entryCopyU = QtWidgets.QAction("Copy Username to Clipboard", self.entryMenu, triggered=self.slotEntryCopyU)
+        self.entryCopyU = QtWidgets.QAction(
+            "Copy Username to Clipboard", self.entryMenu, triggered=self.slotEntryCopyU
+        )
         self.entryMenu.addAction(self.entryCopyU)
-        self.entryCopyP = QtWidgets.QAction("Copy Password to Clipboard", self.entryMenu, triggered=self.slotEntryCopyP)
+        self.entryCopyP = QtWidgets.QAction(
+            "Copy Password to Clipboard", self.entryMenu, triggered=self.slotEntryCopyP
+        )
         self.entryMenu.addAction(self.entryCopyP)
         self.entryMenu.addSeparator()
 
         # Detect if an X system
-        if os.name == 'posix':  # Is there a better way?
-            self.entryCopyUS = QtWidgets.QAction("Copy Username to Selection", self.entryMenu,
-                                                 triggered=self.slotEntryCopyUS)
+        if os.name == "posix":  # Is there a better way?
+            self.entryCopyUS = QtWidgets.QAction(
+                "Copy Username to Selection",
+                self.entryMenu,
+                triggered=self.slotEntryCopyUS,
+            )
             self.entryMenu.addAction(self.entryCopyUS)
-            self.entryCopyPS = QtWidgets.QAction("Copy Password to Selection", self.entryMenu,
-                                                 triggered=self.slotEntryCopyPS)
+            self.entryCopyPS = QtWidgets.QAction(
+                "Copy Password to Selection",
+                self.entryMenu,
+                triggered=self.slotEntryCopyPS,
+            )
             self.entryMenu.addAction(self.entryCopyPS)
             self.entryMenu.addSeparator()
 
-        self.entryNew = QtWidgets.QAction("New Entry", self.entryMenu, triggered=self.slotEntryNew)
+        self.entryNew = QtWidgets.QAction(
+            "New Entry", self.entryMenu, triggered=self.slotEntryNew
+        )
         self.entryMenu.addAction(self.entryNew)
-        self.entryEdit = QtWidgets.QAction("Edit Entry", self.entryMenu, triggered=self.slotEntryEdit)
+        self.entryEdit = QtWidgets.QAction(
+            "Edit Entry", self.entryMenu, triggered=self.slotEntryEdit
+        )
         self.entryMenu.addAction(self.entryEdit)
-        self.entryDel = QtWidgets.QAction("Delete Entry", self.entryMenu, triggered=self.slotEntryDelete)
+        self.entryDel = QtWidgets.QAction(
+            "Delete Entry", self.entryMenu, triggered=self.slotEntryDelete
+        )
         self.entryMenu.addAction(self.entryDel)
         self.entryEdit.setEnabled(False)
         self.entryDel.setEnabled(False)
@@ -818,7 +930,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.entryCopyP.setEnabled(False)
 
         self.helpMenu = self.menuBar().addMenu("&Help")
-        self.helpAbout = QtWidgets.QAction("&About", self.helpMenu, triggered=self.slotHelpAbout)
+        self.helpAbout = QtWidgets.QAction(
+            "&About", self.helpMenu, triggered=self.slotHelpAbout
+        )
         self.helpMenu.addAction(self.helpAbout)
 
         self.table = QtWidgets.QTableView()
@@ -839,24 +953,37 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.editDialog = EditDialog(self, self.document, self.mymodel)
         self.delDialog = DelDialog(self, self.document)
-        self.openConfirmDialog = ConfirmDialog(self, "Open without saving?",
-                                               "Open new file without saving current document?")
+        self.openConfirmDialog = ConfirmDialog(
+            self,
+            "Open without saving?",
+            "Open new file without saving current document?",
+        )
         self.importCSVDialog = ImportCSVDialog(self, self.document, self.mymodel)
         self.helpAboutDialog = AboutDialog(self)
-        self.quitConfirmDialog = ConfirmDialog(self, "Quit without saving?", "Quit without saving current document?")
+        self.quitConfirmDialog = ConfirmDialog(
+            self, "Quit without saving?", "Quit without saving current document?"
+        )
 
         self.findDialog = FindDialog(self, self.table, self.document)
 
         self.viewFindShortcut = QtWidgets.QShortcut(QtGui.QKeySequence.Find, self)
         self.viewFindShortcut.activated.connect(self.slotViewFind)
-        self.viewFindNextShortcut = QtWidgets.QShortcut(QtGui.QKeySequence.FindNext, self)
+        self.viewFindNextShortcut = QtWidgets.QShortcut(
+            QtGui.QKeySequence.FindNext, self
+        )
         self.viewFindNextShortcut.activated.connect(self.slotViewFindNext)
-        self.viewFindPreviousShortcut = QtWidgets.QShortcut(QtGui.QKeySequence.FindPrevious, self)
+        self.viewFindPreviousShortcut = QtWidgets.QShortcut(
+            QtGui.QKeySequence.FindPrevious, self
+        )
         self.viewFindPreviousShortcut.activated.connect(self.slotViewFindPrevious)
 
-        self.dialogFindNextShortcut = QtWidgets.QShortcut(QtGui.QKeySequence.FindNext, self.findDialog)
+        self.dialogFindNextShortcut = QtWidgets.QShortcut(
+            QtGui.QKeySequence.FindNext, self.findDialog
+        )
         self.dialogFindNextShortcut.activated.connect(self.slotViewFindNext)
-        self.dialogFindPreviousShortcut = QtWidgets.QShortcut(QtGui.QKeySequence.FindPrevious, self.findDialog)
+        self.dialogFindPreviousShortcut = QtWidgets.QShortcut(
+            QtGui.QKeySequence.FindPrevious, self.findDialog
+        )
         self.dialogFindPreviousShortcut.activated.connect(self.slotViewFindPrevious)
 
         app.aboutToQuit.connect(self.slotAboutToQuit)
@@ -882,13 +1009,18 @@ class MainWindow(QtWidgets.QMainWindow):
             self.slotFileOpen(fileName=Config().getOpenLastFile())
 
     def closeEvent(self, event):
-        if self.document.isModified() and self.quitConfirmDialog.exec_() != QtWidgets.QDialog.Accepted:
+        if (
+            self.document.isModified()
+            and self.quitConfirmDialog.exec_() != QtWidgets.QDialog.Accepted
+        ):
             event.ignore()
             return
         app.quit()
 
     def customEvent(self, event):
-        QtWidgets.QMessageBox.critical(self, "PasswordManager Error", event.getMessage())
+        QtWidgets.QMessageBox.critical(
+            self, "PasswordManager Error", event.getMessage()
+        )
 
     def slotQuit(self):
         self.app.postEvent(self, QtGui.QCloseEvent())
@@ -913,12 +1045,16 @@ class MainWindow(QtWidgets.QMainWindow):
                 "",
                 "Encrypted CSV (*.gcsv *.csv)",
                 None,
-                QtWidgets.QFileDialog.DontUseNativeDialog)[0]
+                QtWidgets.QFileDialog.DontUseNativeDialog,
+            )[0]
         if fileName is None or len(fileName) == 0:
             return
         url = URL(fullpath=str(fileName))
         if not url.empty():
-            if self.document.isModified() and self.openConfirmDialog.exec_() != QtWidgets.QDialog.Accepted:
+            if (
+                self.document.isModified()
+                and self.openConfirmDialog.exec_() != QtWidgets.QDialog.Accepted
+            ):
                 return
             try:
                 self.mymodel.layoutAboutToBeChanged.emit()
@@ -950,7 +1086,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 "",
                 "Encrypted CSV (*.gcsv *.csv)",
                 None,
-                QtWidgets.QFileDialog.DontUseNativeDialog)[0]
+                QtWidgets.QFileDialog.DontUseNativeDialog,
+            )[0]
             if fileName is None or len(fileName) == 0:
                 return
             url = URL(fullpath=str(fileName))
@@ -968,7 +1105,8 @@ class MainWindow(QtWidgets.QMainWindow):
             "",
             "Comma Seperated Value File (*.csv)",
             None,
-            QtWidgets.QFileDialog.DontUseNativeDialog)[0]
+            QtWidgets.QFileDialog.DontUseNativeDialog,
+        )[0]
 
         if fileName is None or len(fileName) == 0:
             return
@@ -998,10 +1136,14 @@ class MainWindow(QtWidgets.QMainWindow):
         self.clipboard.setText(self.document.getData()[self.getSelRow()][2])
 
     def slotEntryCopyUS(self):
-        self.clipboard.setText(self.document.getData()[self.getSelRow()][1], QtGui.QClipboard.Selection)
+        self.clipboard.setText(
+            self.document.getData()[self.getSelRow()][1], QtGui.QClipboard.Selection
+        )
 
     def slotEntryCopyPS(self):
-        self.clipboard.setText(self.document.getData()[self.getSelRow()][2], QtGui.QClipboard.Selection)
+        self.clipboard.setText(
+            self.document.getData()[self.getSelRow()][2], QtGui.QClipboard.Selection
+        )
 
     def slotSettings(self):
         self.configDialog.show()
@@ -1010,7 +1152,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.findDialog.hide()
         self.findDialog.show()
         self.findDialog.findText.setFocus(QtCore.Qt.ActiveWindowFocusReason)
-        self.findDialog.findText.setSelection(0, len(str(self.findDialog.findText.text())))
+        self.findDialog.findText.setSelection(
+            0, len(str(self.findDialog.findText.text()))
+        )
         self.findDialog.next.setDefault(True)
 
     def slotViewFindNext(self):
@@ -1060,7 +1204,12 @@ def excepthook(type, value, trackbackobj):
     sep = "------------------------------------------------------------------------------------------"
     print(msg, file=sys.stderr)
     # Probably need better dialog box
-    app.postEvent(window, ExceptionEvent(sep + "\n" + str(type) + ":" + str(value) + "\n" + sep + "\n" + msg))
+    app.postEvent(
+        window,
+        ExceptionEvent(
+            sep + "\n" + str(type) + ":" + str(value) + "\n" + sep + "\n" + msg
+        ),
+    )
 
 
 if __name__ == "__main__":
