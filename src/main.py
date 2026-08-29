@@ -2,8 +2,10 @@
 import csv
 import os
 import re
+import shlex
 import subprocess
 import sys
+import tempfile
 import traceback
 from io import StringIO
 
@@ -73,18 +75,22 @@ class Document:
 
     def load(self, filename):
         preOpen = Config().getPreOpenCommand()
-        if preOpen.strip() != "":
-            preOpen = preOpen.split(" ")
-            misc.replace_open_save_symbols(preOpen, filename)
+        if preOpen and preOpen.strip() != "":
+            preOpen_list = shlex.split(preOpen)
+            misc.replace_open_save_symbols(preOpen_list, filename)
             try:
-                subprocess.check_call(preOpen, shell=False)
+                subprocess.check_call(preOpen_list, shell=False)
             except Exception as e:
                 ok = OKDialog(None, "Problem with pre-open.", str(e))
                 traceback.print_exc(file=sys.stdout)
-                ok.exec()
+                if hasattr(ok, "exec_"):
+                    ok.exec_()
+                else:
+                    ok.exec()
         # if encrypted
         # gpg -d filename | prog
-        decrypt = Config().getDecCommand().split(" ")
+        dec_cmd = Config().getDecCommand()
+        decrypt = shlex.split(dec_cmd)
         misc.replace_gpg_symbols(decrypt, filename)
         process = subprocess.Popen(
             decrypt, shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE
@@ -93,8 +99,9 @@ class Document:
         code = process.returncode
         f = StringIO(output[0].decode())
         if code != 0:
+            err_msg = output[1].decode(errors="replace") if output[1] else ""
             raise Exception(
-                "Failed to decrypt file (Code: " + str(code) + ") -- " + str(output[1])
+                "Failed to decrypt file (Code: " + str(code) + ") -- " + err_msg
             )
         if Config().getCSVDelimiterTab():
             delim = "\t"
@@ -123,6 +130,15 @@ class Document:
         self.file = filename
 
     def save(self, filename):
+        gpg_key = Config().getGPGKey()
+        enc_cmd = Config().getEncCommand()
+        if "$k" in enc_cmd and (
+            not gpg_key or (isinstance(gpg_key, str) and not gpg_key.strip())
+        ):
+            raise Exception(
+                "GPG Key is not configured. Please select or enter a GPG Key in File -> Settings."
+            )
+
         f = StringIO()
         if Config().getCSVDelimiterTab():
             delim = "\t"
@@ -146,7 +162,7 @@ class Document:
         output = f.getvalue()
         f.close()
         # cat file | gpg -a --encrypt -r keyid -o - > newfile
-        encrypt = Config().getEncCommand().split(" ")
+        encrypt = shlex.split(enc_cmd)
         misc.replace_gpg_symbols(encrypt, None)
         process = subprocess.Popen(
             encrypt,
@@ -157,27 +173,45 @@ class Document:
         )
         noutput = process.communicate(output.encode())
         if process.returncode != 0:
-            raise Exception("Failed to encrypt data.")
+            err_msg = noutput[1].decode(errors="replace") if noutput[1] else ""
+            raise Exception(
+                "Failed to encrypt data."
+                + (f" (Code: {process.returncode}) -- {err_msg}" if err_msg else "")
+            )
 
-        # Write actual file now
-        f = open(filename, "wb")
-        # XXX: make backup
-        f.write(noutput[0])
-        f.close()
+        # Write actual file atomically with restrictive permissions (0o600)
+        target_dir = os.path.dirname(os.path.abspath(filename))
+        temp_fd, temp_path = tempfile.mkstemp(dir=target_dir, prefix=".tmp_gcsv_")
+        try:
+            os.chmod(temp_path, 0o600)
+            with os.fdopen(temp_fd, "wb") as f_out:
+                f_out.write(noutput[0])
+            os.replace(temp_path, filename)
+        except Exception:
+            if os.path.exists(temp_path):
+                try:
+                    os.remove(temp_path)
+                except OSError:
+                    pass
+            raise
+
         self.file = filename
         self.modified = False
         if Config().getOpenLast():
             Config().setOpenLastFile(self.file)
         postSave = Config().getPostSaveCommand()
-        if postSave.strip() != "":
-            postSave = postSave.split(" ")
-            misc.replace_open_save_symbols(postSave, filename)
+        if postSave and postSave.strip() != "":
+            postSave_list = shlex.split(postSave)
+            misc.replace_open_save_symbols(postSave_list, filename)
             try:
-                subprocess.check_call(postSave, shell=False)
+                subprocess.check_call(postSave_list, shell=False)
             except Exception as e:
                 ok = OKDialog(None, "Problem with post-save.", str(e))
                 traceback.print_exc(file=sys.stdout)
-                ok.exec()
+                if hasattr(ok, "exec_"):
+                    ok.exec_()
+                else:
+                    ok.exec()
 
     def setData(self, data):
         normalized = []
@@ -200,51 +234,84 @@ class KeyTableModel(QtCore.QAbstractTableModel):
 
     def refresh(self):
         self.layoutAboutToBeChanged.emit()
-        getKeys = "$g --no-tty -K --keyid-format=short".split(" ")
+        getKeys = shlex.split("$g --no-tty --with-colons --fixed-list-mode --batch -K")
         misc.replace_gpg_symbols(getKeys)
         process = subprocess.Popen(
             getKeys, shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
         output = process.communicate()
         code = process.returncode
-        f = StringIO(output[0].decode())
         if code != 0:
+            err_msg = output[1].decode(errors="replace") if output[1] else ""
             raise Exception(
-                "Failed to get key listing (Code: "
-                + str(code)
-                + ") -- "
-                + str(output[1])
+                "Failed to get key listing (Code: " + str(code) + ") -- " + err_msg
             )
-        self.data = []
-        foundKey = False
-        key = ""
-        aline = ""
-        for line in f:
-            line = line.rstrip()
-            if not foundKey and line[0:3] == "sec":
-                # Is next line
-                m = re.search(r"/(\w*) ", line)
-                key = m.group(1)
-                aline = line
-                foundKey = True
-            elif len(line) == 0:
-                if len(key) != 0:
-                    self.data.append([aline, key])
-                key = ""
-                aline = ""
-                foundKey = False
-            elif foundKey:
-                aline += "\n" + line
-        if len(key) != 0:
-            self.data.append([aline, key])
+        output_text = output[0].decode(errors="replace")
+        self.data = self._parse_keys(output_text)
         self.layoutChanged.emit()
-        f.close()
 
-    def columnCount(self, parent):
-        return len(self.header)
+    @staticmethod
+    def _parse_keys(output_text):
+        data = []
+        lines = output_text.strip().splitlines()
+        if not lines:
+            return data
 
-    def rowCount(self, parent):
-        return len(self.data)
+        is_colon_format = any(line.startswith("sec:") for line in lines)
+
+        if is_colon_format:
+            current_key = None
+            current_uids = []
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    continue
+                parts = line.split(":")
+                if parts[0] == "sec":
+                    if current_key:
+                        uid_str = (
+                            f" - {', '.join(current_uids)}" if current_uids else ""
+                        )
+                        data.append([f"sec {current_key}{uid_str}", current_key])
+                    current_key = parts[4] if len(parts) > 4 and parts[4] else ""
+                    current_uids = []
+                elif parts[0] == "uid" and current_key is not None:
+                    if len(parts) > 9 and parts[9]:
+                        uid = parts[9].replace("\\x3a", ":")
+                        current_uids.append(uid)
+                elif parts[0] == "fpr" and not current_key and len(parts) > 9:
+                    current_key = parts[9]
+            if current_key:
+                uid_str = f" - {', '.join(current_uids)}" if current_uids else ""
+                data.append([f"sec {current_key}{uid_str}", current_key])
+        else:
+            # Fallback for human-readable output
+            foundKey = False
+            key = ""
+            aline = ""
+            for line in lines:
+                rline = line.rstrip()
+                if not foundKey and rline.startswith("sec"):
+                    m = re.search(r"/(\w+)", rline)
+                    if m:
+                        key = m.group(1)
+                    else:
+                        m2 = re.search(r"\b([0-9A-Fa-f]{8,40})\b", rline)
+                        key = m2.group(1) if m2 else rline
+                    aline = rline
+                    foundKey = True
+                elif len(rline) == 0:
+                    if len(key) != 0:
+                        data.append([aline, key])
+                    key = ""
+                    aline = ""
+                    foundKey = False
+                elif foundKey:
+                    aline += "\n" + rline
+            if len(key) != 0:
+                data.append([aline, key])
+
+        return data
 
     def data(self, index, role):
         if role != QtCore.Qt.DisplayRole:
@@ -867,6 +934,36 @@ class ImportCSVDialog(DialogBase):
             self.importConfirmDialog.slotOk()
 
 
+def create_eye_icon(visible=False):
+    theme_name = "view-password" if not visible else "view-password-hidden"
+    icon = QtGui.QIcon.fromTheme(theme_name)
+    if not icon.isNull():
+        return icon
+
+    try:
+        pixmap = QtGui.QPixmap(20, 20)
+        pixmap.fill(QtCore.Qt.transparent)
+        painter = QtGui.QPainter(pixmap)
+        painter.setRenderHint(QtGui.QPainter.Antialiasing)
+        pen = QtGui.QPen(QtGui.QColor(90, 90, 90), 1.5)
+        pen.setCapStyle(QtCore.Qt.RoundCap)
+        painter.setPen(pen)
+
+        painter.drawArc(2, 4, 16, 12, 30 * 16, 120 * 16)
+        painter.drawArc(2, 4, 16, 12, 210 * 16, 120 * 16)
+
+        painter.setBrush(QtGui.QBrush(QtGui.QColor(90, 90, 90)))
+        painter.drawEllipse(8, 8, 4, 4)
+
+        if visible:
+            painter.drawLine(3, 17, 17, 3)
+
+        painter.end()
+        return QtGui.QIcon(pixmap)
+    except Exception:
+        return QtGui.QIcon()
+
+
 class EditDialog(DialogBase):
     def __init__(self, parent, document, model):
         DialogBase.__init__(
@@ -892,11 +989,15 @@ class EditDialog(DialogBase):
         boxLayout.addWidget(self.username, 2, 1)
         boxLayout.addWidget(QtWidgets.QLabel("Password:"), 3, 0)
         self.password = QtWidgets.QLineEdit()
-        self.password.setEchoMode(QtWidgets.QLineEdit.PasswordEchoOnEdit)
+        self.password.setEchoMode(QtWidgets.QLineEdit.Password)
+        self.togglePasswordAction = QtWidgets.QAction(self.password)
+        self.togglePasswordAction.setIcon(create_eye_icon(visible=False))
+        self.togglePasswordAction.setToolTip("Show password")
+        self.togglePasswordAction.triggered.connect(self.slotTogglePassword)
+        self.password.addAction(
+            self.togglePasswordAction, QtWidgets.QLineEdit.TrailingPosition
+        )
         boxLayout.addWidget(self.password, 3, 1)
-        self.showCheck = QtWidgets.QCheckBox("Show")
-        self.showCheck.toggled.connect(self.slotShowCheck)
-        boxLayout.addWidget(self.showCheck, 4, 0)
         self.generateButton = QtWidgets.QPushButton("Generate")
         self.generateButton.released.connect(self.slotGenerate)
         boxLayout.addWidget(self.generateButton, 4, 1)
@@ -906,6 +1007,16 @@ class EditDialog(DialogBase):
         self.addWidget(entryBox)
 
         self.row = None
+
+    def slotTogglePassword(self):
+        if self.password.echoMode() == QtWidgets.QLineEdit.Password:
+            self.password.setEchoMode(QtWidgets.QLineEdit.Normal)
+            self.togglePasswordAction.setIcon(create_eye_icon(visible=True))
+            self.togglePasswordAction.setToolTip("Hide password")
+        else:
+            self.password.setEchoMode(QtWidgets.QLineEdit.Password)
+            self.togglePasswordAction.setIcon(create_eye_icon(visible=False))
+            self.togglePasswordAction.setToolTip("Show password")
 
     def populateCategories(self, currentCat=""):
         self.category.clear()
@@ -937,17 +1048,13 @@ class EditDialog(DialogBase):
         self.populateCategories(defaultCategory)
         self.username.setText("")
         self.password.setText("")
+        self.password.setEchoMode(QtWidgets.QLineEdit.Password)
+        self.togglePasswordAction.setIcon(create_eye_icon(visible=False))
+        self.togglePasswordAction.setToolTip("Show password")
         self.comment.setText("")
-        self.showCheck.setChecked(False)
 
     def slotGenerate(self):
         self.password.setText(passwordGenerator.generate_password())
-
-    def slotShowCheck(self, checked):
-        if checked:
-            self.password.setEchoMode(QtWidgets.QLineEdit.Normal)
-        else:
-            self.password.setEchoMode(QtWidgets.QLineEdit.PasswordEchoOnEdit)
 
     def slotCancel(self):
         self.clear()

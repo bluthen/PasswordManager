@@ -99,6 +99,10 @@ class DummyWidget:
         return DummySignal()
 
     @property
+    def triggered(self):
+        return DummySignal()
+
+    @property
     def customContextMenuRequested(self):
         return DummySignal()
 
@@ -185,13 +189,19 @@ class DummyTableView(DummyWidget):
 
 
 class DummyLineEdit(DummyWidget):
-    PasswordEchoOnEdit = 2
     Normal = 0
+    NoEcho = 1
+    Password = 2
+    PasswordEchoOnEdit = 3
+
+    LeadingPosition = 0
+    TrailingPosition = 1
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._text = ""
         self._echo_mode = 0
+        self._actions = []
 
     def text(self):
         return self._text
@@ -201,6 +211,13 @@ class DummyLineEdit(DummyWidget):
 
     def setEchoMode(self, mode):
         self._echo_mode = mode
+
+    def echoMode(self):
+        return self._echo_mode
+
+    def addAction(self, action, position=None):
+        self._actions.append((action, position))
+        return action
 
 
 class DummyRadioButton(DummyWidget):

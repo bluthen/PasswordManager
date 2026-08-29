@@ -29,7 +29,7 @@ class Config:
                 self.gpgPath = "/usr/bin/gpg2"
                 self.gpgKey = ""
                 self.encCommand = "$g --encrypt --no-tty -r $k -o -"
-                self.decCommand = "$g --no-tty -d $f"
+                self.decCommand = "$g --no-tty -d -- $f"
             if not self.csvDelimiter or len(self.csvDelimiter) == 0:
                 self.csvDelimiter = ","
             if self.csvDelimiterTab is None:
