@@ -15,9 +15,9 @@ class TestFindDialog(unittest.TestCase):
         self.doc = main.Document()
         self.doc.setData(
             [
-                ["google.com", "Alice", "secret1", "Work email"],
-                ["GITHUB.COM", "bob", "secret2", "Personal code"],
-                ["amazon.com", "Charlie", "secret3", "Shopping"],
+                ["google.com", "Work", "Alice", "secret1", "Work email"],
+                ["GITHUB.COM", "Dev", "bob", "secret2", "Personal code"],
+                ["amazon.com", "Shopping", "Charlie", "secret3", "Shopping account"],
             ]
         )
         self.find_dialog = main.FindDialog(self.parent, self.table, self.doc)
@@ -72,9 +72,9 @@ class TestFindDialog(unittest.TestCase):
     def test_search_navigation_next_and_previous(self):
         self.doc.setData(
             [
-                ["example1.com", "user1", "pass1", "test"],
-                ["example2.com", "user2", "pass2", "test"],
-                ["example3.com", "user3", "pass3", "test"],
+                ["example1.com", "Cat1", "user1", "pass1", "test"],
+                ["example2.com", "Cat2", "user2", "pass2", "test"],
+                ["example3.com", "Cat3", "user3", "pass3", "test"],
             ]
         )
         self.find_dialog.findText.setText("EXAMPLE")
@@ -109,24 +109,30 @@ class TestFindDialog(unittest.TestCase):
     def test_search_across_different_columns_case_insensitive(self):
         self.doc.setData(
             [
-                ["mysite.org", "admin", "pAssWord123", "Important Notes"],
+                ["mysite.org", "Websites", "admin", "pAssWord123", "Important Notes"],
             ]
         )
         self.find_dialog.caseCheck.setChecked(False)
 
-        # Match in column 1 (username)
+        # Match in column 1 (category)
+        self.find_dialog.findText.setText("WEBSITES")
+        self.table.reset_mock()
+        self.find_dialog.slotNext(forwardSearch=True)
+        self.table.selectRow.assert_called_once_with(0)
+
+        # Match in column 2 (username)
         self.find_dialog.findText.setText("ADMIN")
         self.table.reset_mock()
         self.find_dialog.slotNext(forwardSearch=True)
         self.table.selectRow.assert_called_once_with(0)
 
-        # Match in column 2 (password)
+        # Match in column 3 (password)
         self.find_dialog.findText.setText("PASSWORD123")
         self.table.reset_mock()
         self.find_dialog.slotNext(forwardSearch=True)
         self.table.selectRow.assert_called_once_with(0)
 
-        # Match in column 3 (comment)
+        # Match in column 4 (comment)
         self.find_dialog.findText.setText("notes")
         self.table.reset_mock()
         self.find_dialog.slotNext(forwardSearch=True)

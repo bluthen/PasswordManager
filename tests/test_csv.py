@@ -13,25 +13,27 @@ class TestCSVSerialization(unittest.TestCase):
     def setUp(self):
         self.doc = main.Document()
         self.test_entries = [
-            ["Site 1", "user1", "simple_password", "simple comment"],
-            ["Site 2", "user2", "p@ss\tword", "comment\twith\ttab"],
-            ["Site 3", "user3", "p@ss\nword", "comment\nwith\nnewline"],
-            ["Site 4", "user4", "p@ss\r\nword", "comment\r\nwith\rcrlf"],
-            ["Site 5", "user5", 'p@ss"word"', 'comment"with"quotes'],
-            ["Site 6", "user6", "p@ss'word'", "comment'with'quotes"],
-            ["Site 7", "user7", "p@ss\\word", "comment\\with\\backslash"],
-            ["Site 8", "user8", "p@ss\\\\double", "comment\\\\double"],
-            ["Site 9", "user9", "p@ss,with,comma", "comment,with,comma"],
-            ["Site 10", "user10", "p@ss;with;semi", "comment;with;semi"],
-            ["Site 11", "user11", "p@ss|with|pipe", "comment|with|pipe"],
+            ["Site 1", "Personal", "user1", "simple_password", "simple comment"],
+            ["Site 2", "Work", "user2", "p@ss\tword", "comment\twith\ttab"],
+            ["Site 3", "Finance", "user3", "p@ss\nword", "comment\nwith\nnewline"],
+            ["Site 4", "Personal", "user4", "p@ss\r\nword", "comment\r\nwith\rcrlf"],
+            ["Site 5", "Work", "user5", 'p@ss"word"', 'comment"with"quotes'],
+            ["Site 6", "Finance", "user6", "p@ss'word'", "comment'with'quotes"],
+            ["Site 7", "Personal", "user7", "p@ss\\word", "comment\\with\\backslash"],
+            ["Site 8", "Work", "user8", "p@ss\\\\double", "comment\\\\double"],
+            ["Site 9", "Finance", "user9", "p@ss,with,comma", "comment,with,comma"],
+            ["Site 10", "Personal", "user10", "p@ss;with;semi", "comment;with;semi"],
+            ["Site 11", "Work", "user11", "p@ss|with|pipe", "comment|with|pipe"],
             [
                 "Site 12",
+                "Unicode",
                 "user12",
                 "🔐 🔑 中文 日本語 Русский €£¥",
                 "unicode & emojis 🚀",
             ],
             [
                 "Site 13",
+                "Special",
                 "user13",
                 "pass ~!@#$%^&*()-_=+[{]}\\|;:'\",<.>/?",
                 "all ascii specials",
@@ -244,16 +246,16 @@ class TestCSVSerialization(unittest.TestCase):
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".csv", delete=False, encoding="utf-8"
         ) as tmp:
-            tmp.write("site1,user1,pass1,comm1\n")
-            tmp.write('site2,user2,"pass,2","comm\n2"\n')
+            tmp.write("site1,cat1,user1,pass1,comm1\n")
+            tmp.write('site2,cat2,user2,"pass,2","comm\n2"\n')
             tmp_path = tmp.name
 
         try:
             import_doc = main.Document()
             import_doc.importCSV(tmp_path, delim=",", quote='"')
             expected = [
-                ["site1", "user1", "pass1", "comm1"],
-                ["site2", "user2", "pass,2", "comm\n2"],
+                ["site1", "cat1", "user1", "pass1", "comm1"],
+                ["site2", "cat2", "user2", "pass,2", "comm\n2"],
             ]
             self.assertEqual(import_doc.getData(), expected)
         finally:
@@ -264,16 +266,16 @@ class TestCSVSerialization(unittest.TestCase):
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".csv", delete=False, encoding="utf-8"
         ) as tmp:
-            tmp.write("site1\tuser1\tpass1\tcomm1\n")
-            tmp.write("site2\tuser2\tpass\\\t2\tcomm\\\n2\n")
+            tmp.write("site1\tcat1\tuser1\tpass1\tcomm1\n")
+            tmp.write("site2\tcat2\tuser2\tpass\\\t2\tcomm\\\n2\n")
             tmp_path = tmp.name
 
         try:
             import_doc = main.Document()
             import_doc.importCSV(tmp_path, delim="\t", quote=None)
             expected = [
-                ["site1", "user1", "pass1", "comm1"],
-                ["site2", "user2", "pass\t2", "comm\n2"],
+                ["site1", "cat1", "user1", "pass1", "comm1"],
+                ["site2", "cat2", "user2", "pass\t2", "comm\n2"],
             ]
             self.assertEqual(import_doc.getData(), expected)
         finally:
@@ -292,8 +294,8 @@ class TestCSVSerialization(unittest.TestCase):
             import_doc = main.Document()
             import_doc.importCSV(tmp_path, delim=",", quote=None)
             expected = [
-                ["site1", "user1", "", ""],
-                ["site2", "", "", ""],
+                ["site1", "", "user1", "", ""],
+                ["site2", "", "", "", ""],
             ]
             self.assertEqual(import_doc.getData(), expected)
         finally:

@@ -33,6 +33,28 @@ class Document:
     def getFile(self):
         return self.file
 
+    def _normalize_row(self, row):
+        if len(row) == 4:
+            # Backward compatibility: [Name, Username, Password, Comment] -> [Name, "", Username, Password, Comment]
+            return [str(row[0]), "", str(row[1]), str(row[2]), str(row[3])]
+        elif len(row) < 4:
+            name = str(row[0]) if len(row) > 0 else ""
+            user = str(row[1]) if len(row) > 1 else ""
+            pwd = str(row[2]) if len(row) > 2 else ""
+            return [name, "", user, pwd, ""]
+        else:
+            r = [str(x) for x in row]
+            while len(r) < 5:
+                r.append("")
+            return r[:5]
+
+    def getCategories(self):
+        cats = set()
+        for row in self.data:
+            if len(row) > 1 and str(row[1]).strip():
+                cats.add(str(row[1]).strip())
+        return sorted(list(cats))
+
     def importCSV(self, filename, delim, quote):
         with open(filename, "r", newline="", encoding="utf-8", errors="replace") as f:
             if quote is not None and len(str(quote)) == 1:
@@ -45,9 +67,7 @@ class Document:
                 )
             mydata = []
             for row in csvReader:
-                while len(row) < 4:
-                    row.append("")
-                mydata.append(row)
+                mydata.append(self._normalize_row(row))
             self.setData(mydata)
         self.setModified()
 
@@ -90,9 +110,7 @@ class Document:
             )
         mydata = []
         for row in csvReader:
-            while len(row) < 4:
-                row.append("")
-            mydata.append(row)
+            mydata.append(self._normalize_row(row))
         self.setData(mydata)
         if f:
             f.close()
@@ -150,7 +168,11 @@ class Document:
                 ok.exec()
 
     def setData(self, data):
-        self.data = data
+        normalized = []
+        if data is not None:
+            for row in data:
+                normalized.append(self._normalize_row(row))
+        self.data = normalized
 
     def getData(self):
         return self.data
@@ -269,30 +291,62 @@ class MainTableModel(QtCore.QAbstractTableModel):
         self.main = main
 
         self.document = document
-        self.header = ["Name", "Username", "Password", "Comment"]
-        self.sort(0, QtCore.Qt.DescendingOrder)
+        self.header = ["Name", "Category", "Username", "Password", "Comment"]
+        self.categoryFilter = "All Categories"
+        self.visibleIndices = []
+        self.sortColumn = 0
+        self.sortOrder = QtCore.Qt.AscendingOrder
+        self.sort(0, QtCore.Qt.AscendingOrder)
 
-    def rowCount(self, parent):
-        return len(self.document.getData())
+    def updateVisibleRows(self):
+        data = self.document.getData()
+        if data is None:
+            self.visibleIndices = []
+            return
+        if self.categoryFilter == "All Categories" or not self.categoryFilter:
+            self.visibleIndices = list(range(len(data)))
+        else:
+            self.visibleIndices = [
+                i
+                for i, row in enumerate(data)
+                if len(row) > 1 and str(row[1]) == self.categoryFilter
+            ]
 
-    def columnCount(self, parent):
+    def setCategoryFilter(self, category):
+        self.layoutAboutToBeChanged.emit()
+        self.categoryFilter = category
+        self.updateVisibleRows()
+        self.layoutChanged.emit()
+
+    def getDocRow(self, table_row):
+        if 0 <= table_row < len(self.visibleIndices):
+            return self.visibleIndices[table_row]
+        return table_row
+
+    def rowCount(self, parent=None):
+        return len(self.visibleIndices)
+
+    def columnCount(self, parent=None):
         return len(self.header)
 
     def data(self, index, role):
         if role != QtCore.Qt.DisplayRole:
             return QtCore.QVariant()
-        if self.document.getData() is not None:
+        if self.document.getData() is not None and 0 <= index.row() < len(
+            self.visibleIndices
+        ):
+            doc_row = self.visibleIndices[index.row()]
             try:
-                if index.column() == 2:  # Password column
+                if index.column() == 3:  # Password column
                     if self.main.viewPasswords.isChecked():
                         return QtCore.QVariant(
-                            self.document.getData()[index.row()][index.column()]
+                            self.document.getData()[doc_row][index.column()]
                         )
                     else:
                         return QtCore.QVariant("****")
                 else:
                     return QtCore.QVariant(
-                        self.document.getData()[index.row()][index.column()]
+                        self.document.getData()[doc_row][index.column()]
                     )
             except:
                 return QtCore.QVariant()
@@ -311,14 +365,14 @@ class MainTableModel(QtCore.QAbstractTableModel):
         self.sortOrder = order
         if self.document.getData() is not None:
             self.layoutAboutToBeChanged.emit()
-            # self.document.setData(sorted(self.document.getData(), key=operator.itemgetter(column), reverse=(order == QtCore.Qt.DescendingOrder)))
             self.document.setData(
                 sorted(
                     self.document.getData(),
-                    key=lambda a: a[column].lower(),
-                    reverse=(order != QtCore.Qt.DescendingOrder),
+                    key=lambda a: str(a[column]).lower() if len(a) > column else "",
+                    reverse=(order == QtCore.Qt.DescendingOrder),
                 )
             )
+            self.updateVisibleRows()
             self.layoutChanged.emit()
 
 
@@ -546,6 +600,35 @@ class FindDialog(DialogBase):
         self.lastRow = None
         self.lastText = None
 
+    def getRowCount(self):
+        if self.table is not None and hasattr(self.table, "model"):
+            try:
+                model = self.table.model()
+                if model is not None and hasattr(model, "rowCount"):
+                    rc = model.rowCount(None)
+                    if isinstance(rc, int):
+                        return rc
+            except Exception:
+                pass
+        return len(self.document.getData())
+
+    def getCellValue(self, visible_row, col):
+        if self.table is not None and hasattr(self.table, "model"):
+            try:
+                model = self.table.model()
+                if model is not None and hasattr(model, "getDocRow"):
+                    doc_row = model.getDocRow(visible_row)
+                    if isinstance(doc_row, int):
+                        data = self.document.getData()
+                        if 0 <= doc_row < len(data) and 0 <= col < len(data[doc_row]):
+                            return str(data[doc_row][col])
+            except Exception:
+                pass
+        data = self.document.getData()
+        if 0 <= visible_row < len(data) and 0 <= col < len(data[visible_row]):
+            return str(data[visible_row][col])
+        return ""
+
     def slotNext(self, forwardSearch=True):
         if self.isHidden():
             self.show()
@@ -553,6 +636,9 @@ class FindDialog(DialogBase):
             self.next.setDefault(True)
         f = str(self.findText.text())
         if len(f) == 0:
+            return
+        total_rows = self.getRowCount()
+        if total_rows == 0:
             return
         if self.lastText != f:
             self.lastText = f
@@ -562,11 +648,11 @@ class FindDialog(DialogBase):
                 self.nextRow = 0
             else:
                 self.lastC = 0
-                self.nextRow = len(self.document.getData()) - 1
+                self.nextRow = total_rows - 1
         # Correct for when switching from next and previous
         if forwardSearch:
             if self.lastForwardSearch != forwardSearch:
-                if self.nextRow == len(self.document.getData()) - 1:
+                if self.nextRow == total_rows - 1:
                     self.nextRow = 1
                     self.lastC = self.lastC - 1
                 else:
@@ -574,24 +660,25 @@ class FindDialog(DialogBase):
         else:
             if self.lastForwardSearch != forwardSearch:
                 if self.nextRow == 0:
-                    self.nextRow = len(self.document.getData()) - 2
+                    self.nextRow = total_rows - 2
                     self.lastC = self.lastC - 1
                 else:
                     self.nextRow = self.nextRow - 2
         self.lastForwardSearch = forwardSearch
 
-        for c in range(self.lastC, 4):
+        for c in range(self.lastC, 5):
             if forwardSearch:
-                en = range(self.nextRow, len(self.document.getData()))
+                en = range(self.nextRow, total_rows)
             else:
                 en = range(self.nextRow, -1, -1)
             for i in en:
                 found = False
+                cell_val = self.getCellValue(i, c)
                 if self.caseCheck.isChecked():
-                    if self.document.getData()[i][c].find(f) >= 0:
+                    if cell_val.find(f) >= 0:
                         found = True
                 else:
-                    if self.document.getData()[i][c].lower().find(f.lower()) >= 0:
+                    if cell_val.lower().find(f.lower()) >= 0:
                         found = True
                 if found:
                     self.table.selectRow(i)
@@ -599,13 +686,13 @@ class FindDialog(DialogBase):
                     self.lastC = c
                     if forwardSearch:
                         self.nextRow = i + 1
-                        if self.nextRow >= len(self.document.getData()):
+                        if self.nextRow >= total_rows:
                             self.nextRow = 0
                             self.lastC = c + 1
                     else:
                         self.nextRow = i - 1
                         if self.nextRow < 0:
-                            self.nextRow = len(self.document.getData()) - 1
+                            self.nextRow = total_rows - 1
                             self.lastC = c + 1
                     return
         # At end, start at top of bottom
@@ -662,6 +749,10 @@ class ImportCSVConfirmDialog(DialogBase):
             self.document.importCSV(self.file, self.delim, self.quote)
             self.model.resort()
             self.model.layoutChanged.emit()
+            if hasattr(self.parent, "parent") and hasattr(
+                self.parent.parent, "updateCategoryFilterList"
+            ):
+                self.parent.parent.updateCategoryFilterList()
         except Exception as e:
             ok = OKDialog(self, "Problem importing file", e.__str__())
             traceback.print_exc(file=sys.stdout)
@@ -751,6 +842,7 @@ class EditDialog(DialogBase):
         DialogBase.__init__(
             self, "New/Edit", ok=True, cancel=True, modal=True, parent=parent
         )
+        self.parent = parent
         self.document = document
         self.model = model
         entryBox = QtWidgets.QGroupBox("Entry")
@@ -759,36 +851,60 @@ class EditDialog(DialogBase):
         boxLayout.addWidget(QtWidgets.QLabel("Name:"), 0, 0)
         self.name = QtWidgets.QLineEdit()
         boxLayout.addWidget(self.name, 0, 1)
-        boxLayout.addWidget(QtWidgets.QLabel("Username:"), 1, 0)
+
+        boxLayout.addWidget(QtWidgets.QLabel("Category:"), 1, 0)
+        self.category = QtWidgets.QComboBox()
+        self.category.setEditable(True)
+        boxLayout.addWidget(self.category, 1, 1)
+
+        boxLayout.addWidget(QtWidgets.QLabel("Username:"), 2, 0)
         self.username = QtWidgets.QLineEdit()
-        boxLayout.addWidget(self.username, 1, 1)
-        boxLayout.addWidget(QtWidgets.QLabel("Password:"), 2, 0)
+        boxLayout.addWidget(self.username, 2, 1)
+        boxLayout.addWidget(QtWidgets.QLabel("Password:"), 3, 0)
         self.password = QtWidgets.QLineEdit()
         self.password.setEchoMode(QtWidgets.QLineEdit.PasswordEchoOnEdit)
-        boxLayout.addWidget(self.password, 2, 1)
+        boxLayout.addWidget(self.password, 3, 1)
         self.showCheck = QtWidgets.QCheckBox("Show")
         self.showCheck.toggled.connect(self.slotShowCheck)
-        boxLayout.addWidget(self.showCheck, 3, 0)
+        boxLayout.addWidget(self.showCheck, 4, 0)
         self.generateButton = QtWidgets.QPushButton("Generate")
         self.generateButton.released.connect(self.slotGenerate)
-        boxLayout.addWidget(self.generateButton, 3, 1)
-        boxLayout.addWidget(QtWidgets.QLabel("Comment:"), 4, 0)
+        boxLayout.addWidget(self.generateButton, 4, 1)
+        boxLayout.addWidget(QtWidgets.QLabel("Comment:"), 5, 0)
         self.comment = QtWidgets.QLineEdit()
-        boxLayout.addWidget(self.comment, 4, 1)
+        boxLayout.addWidget(self.comment, 5, 1)
         self.addWidget(entryBox)
 
         self.row = None
 
+    def populateCategories(self, currentCat=""):
+        self.category.clear()
+        cats = self.document.getCategories()
+        for c in cats:
+            self.category.addItem(c)
+        if currentCat:
+            idx = self.category.findText(currentCat)
+            if idx >= 0:
+                self.category.setCurrentIndex(idx)
+            else:
+                self.category.setEditText(currentCat)
+        else:
+            self.category.setEditText("")
+
     def setRow(self, row):
         self.row = row
-        self.name.setText(self.document.getData()[row][0])
-        self.username.setText(self.document.getData()[row][1])
-        self.password.setText(self.document.getData()[row][2])
-        self.comment.setText(self.document.getData()[row][3])
+        data = self.document.getData()[row]
+        self.name.setText(data[0] if len(data) > 0 else "")
+        cat = data[1] if len(data) > 1 else ""
+        self.populateCategories(cat)
+        self.username.setText(data[2] if len(data) > 2 else "")
+        self.password.setText(data[3] if len(data) > 3 else "")
+        self.comment.setText(data[4] if len(data) > 4 else "")
 
-    def clear(self):
+    def clear(self, defaultCategory=""):
         self.row = None
         self.name.setText("")
+        self.populateCategories(defaultCategory)
         self.username.setText("")
         self.password.setText("")
         self.comment.setText("")
@@ -808,8 +924,14 @@ class EditDialog(DialogBase):
         self.reject()
 
     def slotOk(self):
+        cat_val = (
+            str(self.category.currentText()).strip()
+            if hasattr(self.category, "currentText")
+            else ""
+        )
         line = [
             str(self.name.text()),
+            cat_val,
             str(self.username.text()),
             str(self.password.text()),
             str(self.comment.text()),
@@ -820,6 +942,8 @@ class EditDialog(DialogBase):
             self.document.getData()[self.row] = line
         self.model.resort()
         self.document.setModified()
+        if hasattr(self.parent, "updateCategoryFilterList"):
+            self.parent.updateCategoryFilterList()
         self.accept()
 
 
@@ -935,6 +1059,21 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         self.helpMenu.addAction(self.helpAbout)
 
+        centralWidget = QtWidgets.QWidget()
+        centralLayout = QtWidgets.QVBoxLayout()
+        centralLayout.setContentsMargins(4, 4, 4, 4)
+        centralLayout.setSpacing(4)
+        centralWidget.setLayout(centralLayout)
+
+        filterLayout = QtWidgets.QHBoxLayout()
+        filterLayout.addWidget(QtWidgets.QLabel("Category:"))
+        self.categoryCombo = QtWidgets.QComboBox()
+        self.categoryCombo.addItem("All Categories")
+        self.categoryCombo.currentTextChanged.connect(self.slotCategoryChanged)
+        filterLayout.addWidget(self.categoryCombo)
+        filterLayout.addStretch()
+        centralLayout.addLayout(filterLayout)
+
         self.table = QtWidgets.QTableView()
         self.table.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.table.verticalHeader().setDefaultSectionSize(20)
@@ -947,7 +1086,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.table.setCornerButtonEnabled(False)
         self.table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
         self.table.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
-        self.setCentralWidget(self.table)
+        centralLayout.addWidget(self.table)
+        self.setCentralWidget(centralWidget)
 
         self.configDialog = ConfigDialog(self)
 
@@ -994,8 +1134,28 @@ class MainWindow(QtWidgets.QMainWindow):
         self.table.horizontalHeader().resizeSection(0, Config().getGeometryH0())
         self.table.horizontalHeader().resizeSection(1, Config().getGeometryH1())
         self.table.horizontalHeader().resizeSection(2, Config().getGeometryH2())
+        self.table.horizontalHeader().resizeSection(3, Config().getGeometryH3())
 
         self.firstShow = False
+
+    def slotCategoryChanged(self, text):
+        self.mymodel.setCategoryFilter(text)
+
+    def updateCategoryFilterList(self):
+        current = self.categoryCombo.currentText()
+        self.categoryCombo.blockSignals(True)
+        self.categoryCombo.clear()
+        self.categoryCombo.addItem("All Categories")
+        cats = self.document.getCategories()
+        for cat in cats:
+            self.categoryCombo.addItem(cat)
+        idx = self.categoryCombo.findText(current)
+        if idx >= 0:
+            self.categoryCombo.setCurrentIndex(idx)
+        else:
+            self.categoryCombo.setCurrentIndex(0)
+        self.categoryCombo.blockSignals(False)
+        self.mymodel.setCategoryFilter(self.categoryCombo.currentText())
 
     def showEvent(self, e):
         e.ignore()
@@ -1030,12 +1190,15 @@ class MainWindow(QtWidgets.QMainWindow):
         Config().setGeometryH0(self.table.horizontalHeader().sectionSize(0))
         Config().setGeometryH1(self.table.horizontalHeader().sectionSize(1))
         Config().setGeometryH2(self.table.horizontalHeader().sectionSize(2))
+        Config().setGeometryH3(self.table.horizontalHeader().sectionSize(3))
 
     def slotHelpAbout(self):
         self.helpAboutDialog.show()
 
     def getSelRow(self):
-        return self.table.selectedIndexes()[0].row()
+        if len(self.table.selectedIndexes()) > 0:
+            return self.mymodel.getDocRow(self.table.selectedIndexes()[0].row())
+        return 0
 
     def slotFileOpen(self, checked=False, fileName=None):
         if fileName is None:
@@ -1061,6 +1224,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.document.load(url.get_fullpath())
                 self.mymodel.resort()
                 self.mymodel.layoutChanged.emit()
+                self.updateCategoryFilterList()
                 self.setWindowTitle("Password Manager - " + url.get_fullpath())
             except Exception as e:
                 ok = OKDialog(self, "Problem opening file", e.__str__())
@@ -1116,7 +1280,11 @@ class MainWindow(QtWidgets.QMainWindow):
             self.importCSVDialog.show()
 
     def slotEntryNew(self):
-        self.editDialog.clear()
+        defaultCat = ""
+        currentFilter = self.categoryCombo.currentText()
+        if currentFilter and currentFilter != "All Categories":
+            defaultCat = currentFilter
+        self.editDialog.clear(defaultCategory=defaultCat)
         self.editDialog.show()
 
     def slotEntryEdit(self):
@@ -1124,25 +1292,28 @@ class MainWindow(QtWidgets.QMainWindow):
         self.editDialog.show()
 
     def slotEntryDelete(self):
-        self.delDialog.setRow(self.getSelRow())
+        selRow = self.getSelRow()
+        self.delDialog.setRow(selRow)
         if self.delDialog.exec_() == QtWidgets.QDialog.Accepted:
-            del self.document.getData()[self.getSelRow()]
+            del self.document.getData()[selRow]
             self.document.setModified()
+            self.mymodel.resort()
+            self.updateCategoryFilterList()
 
     def slotEntryCopyU(self):
-        self.clipboard.setText(self.document.getData()[self.getSelRow()][1])
+        self.clipboard.setText(self.document.getData()[self.getSelRow()][2])
 
     def slotEntryCopyP(self):
-        self.clipboard.setText(self.document.getData()[self.getSelRow()][2])
+        self.clipboard.setText(self.document.getData()[self.getSelRow()][3])
 
     def slotEntryCopyUS(self):
         self.clipboard.setText(
-            self.document.getData()[self.getSelRow()][1], QtGui.QClipboard.Selection
+            self.document.getData()[self.getSelRow()][2], QtGui.QClipboard.Selection
         )
 
     def slotEntryCopyPS(self):
         self.clipboard.setText(
-            self.document.getData()[self.getSelRow()][2], QtGui.QClipboard.Selection
+            self.document.getData()[self.getSelRow()][3], QtGui.QClipboard.Selection
         )
 
     def slotSettings(self):
