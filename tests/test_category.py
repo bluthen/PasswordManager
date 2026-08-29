@@ -224,6 +224,26 @@ class TestCategoryFeature(unittest.TestCase):
         self.assertEqual(self.doc.getData()[0][1], "Banking")
         self.assertIn("Banking", self.doc.getCategories())
 
+    def test_main_window_initial_sort_ascending(self):
+        mock_app = MagicMock()
+        win = main.MainWindow(mock_app)
+        win.document.setData(
+            [
+                ["zebra", "Z", "u1", "p1", "c1"],
+                ["apple", "A", "u2", "p2", "c2"],
+                ["mango", "M", "u3", "p3", "c3"],
+            ]
+        )
+        win.mymodel.resort()
+
+        # Should sort Ascending (A at top, Z at bottom)
+        self.assertEqual(win.document.getData()[0][0], "apple")
+        self.assertEqual(win.document.getData()[1][0], "mango")
+        self.assertEqual(win.document.getData()[2][0], "zebra")
+        # Header indicator should be column 0, AscendingOrder (0)
+        self.assertEqual(win.table.horizontalHeader().sortIndicatorSection(), 0)
+        self.assertEqual(win.table.horizontalHeader().sortIndicatorOrder(), 0)
+
 
 if __name__ == "__main__":
     unittest.main()

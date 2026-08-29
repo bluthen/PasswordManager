@@ -68,6 +68,25 @@ class DummyWidget:
     def setText(self, *args, **kwargs):
         pass
 
+    def setWordWrap(self, *args, **kwargs):
+        pass
+
+    def __getattr__(self, name):
+        return MagicMock()
+
+    def resize(self, *args, **kwargs):
+        pass
+
+    def size(self):
+        return MagicMock()
+
+    def setCentralWidget(self, *args, **kwargs):
+        pass
+
+    def menuBar(self):
+        mb = MagicMock()
+        return mb
+
     def addButton(self, *args, **kwargs):
         return DummyWidget()
 
@@ -78,6 +97,91 @@ class DummyWidget:
     @property
     def released(self):
         return DummySignal()
+
+    @property
+    def customContextMenuRequested(self):
+        return DummySignal()
+
+
+class DummyHeaderView(DummyWidget):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._section = 0
+        self._order = 0
+
+    def sortIndicatorSection(self):
+        return self._section
+
+    def sortIndicatorOrder(self):
+        return self._order
+
+    def setSortIndicator(self, section, order):
+        self._section = section
+        self._order = order
+
+    def resizeSection(self, section, size):
+        pass
+
+    def setSectionResizeMode(self, *args, **kwargs):
+        pass
+
+    def sectionSize(self, section):
+        return 100
+
+    def setDefaultSectionSize(self, size):
+        pass
+
+    def setStretchLastSection(self, stretch):
+        pass
+
+
+class DummyTableView(DummyWidget):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._model = None
+        self._header = DummyHeaderView()
+        self._vheader = DummyHeaderView()
+
+    def setModel(self, model):
+        self._model = model
+
+    def model(self):
+        return self._model
+
+    def horizontalHeader(self):
+        return self._header
+
+    def verticalHeader(self):
+        return self._vheader
+
+    def setSortingEnabled(self, enabled):
+        pass
+
+    def sortByColumn(self, column, order):
+        self._header.setSortIndicator(column, order)
+        if self._model is not None and hasattr(self._model, "sort"):
+            self._model.sort(column, order)
+
+    def setContextMenuPolicy(self, policy):
+        pass
+
+    def setCornerButtonEnabled(self, enabled):
+        pass
+
+    def setSelectionBehavior(self, behavior):
+        pass
+
+    def setSelectionMode(self, mode):
+        pass
+
+    def selectRow(self, row):
+        pass
+
+    def selectedIndexes(self):
+        return []
+
+    def scrollTo(self, index):
+        pass
 
 
 class DummyLineEdit(DummyWidget):
@@ -188,14 +292,55 @@ class DummyAbstractTableModel:
         return MagicMock()
 
 
+class DummyQSize:
+    def __init__(self, w=400, h=400):
+        self._w = w
+        self._h = h
+
+    def width(self):
+        return self._w
+
+    def height(self):
+        return self._h
+
+
+class DummySettings:
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def beginGroup(self, *args, **kwargs):
+        pass
+
+    def endGroup(self, *args, **kwargs):
+        pass
+
+    def sync(self):
+        pass
+
+    def setValue(self, *args, **kwargs):
+        pass
+
+    def value(self, key, *args, **kwargs):
+        if key == "Geometry":
+            return DummyQSize(400, 400)
+        vtype = kwargs.get("type", str)
+        if vtype == int:
+            return 100
+        if vtype == bool:
+            return False
+        return ""
+
+
 class DummyQtCore:
     Qt = MagicMock()
-    Qt.DescendingOrder = 1
     Qt.AscendingOrder = 0
+    Qt.DescendingOrder = 1
     Qt.DisplayRole = 0
     Qt.ActiveWindowFocusReason = 0
 
     QAbstractTableModel = DummyAbstractTableModel
+    QSize = DummyQSize
+    QSettings = DummySettings
 
     @staticmethod
     def pyqtSignal(*args, **kwargs):
@@ -216,8 +361,10 @@ class DummyQtCore:
 def setup_qt_mock():
     dummy_qt = MagicMock()
     dummy_qtwidgets = MagicMock()
+    dummy_qtwidgets.QMainWindow = DummyWidget
     dummy_qtwidgets.QDialog = DummyWidget
     dummy_qtwidgets.QWidget = DummyWidget
+    dummy_qtwidgets.QTableView = DummyTableView
     dummy_qtwidgets.QGridLayout = DummyWidget
     dummy_qtwidgets.QVBoxLayout = DummyWidget
     dummy_qtwidgets.QHBoxLayout = DummyWidget

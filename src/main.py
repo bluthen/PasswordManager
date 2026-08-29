@@ -1083,6 +1083,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.mymodel = MainTableModel(self.document, self)
         self.table.setModel(self.mymodel)
         self.table.setSortingEnabled(True)
+        self.table.sortByColumn(0, QtCore.Qt.AscendingOrder)
         self.table.setCornerButtonEnabled(False)
         self.table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
         self.table.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
