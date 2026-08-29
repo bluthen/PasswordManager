@@ -203,6 +203,37 @@ class DummyLineEdit(DummyWidget):
         self._echo_mode = mode
 
 
+class DummyRadioButton(DummyWidget):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._checked = False
+        self._group = None
+
+    def isChecked(self):
+        return self._checked
+
+    def setChecked(self, c):
+        self._checked = bool(c)
+        if self._checked and self._group is not None:
+            for btn in self._group._buttons:
+                if btn is not self:
+                    btn._checked = False
+
+    @property
+    def toggled(self):
+        return DummySignal()
+
+
+class DummyButtonGroup(DummyWidget):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._buttons = []
+
+    def addButton(self, button):
+        self._buttons.append(button)
+        button._group = self
+
+
 class DummyCheckBox(DummyWidget):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -372,6 +403,8 @@ def setup_qt_mock():
     dummy_qtwidgets.QLineEdit = DummyLineEdit
     dummy_qtwidgets.QPushButton = DummyWidget
     dummy_qtwidgets.QCheckBox = DummyCheckBox
+    dummy_qtwidgets.QRadioButton = DummyRadioButton
+    dummy_qtwidgets.QButtonGroup = DummyButtonGroup
     dummy_qtwidgets.QComboBox = DummyComboBox
     dummy_qtwidgets.QLabel = DummyWidget
     dummy_qtwidgets.QDialogButtonBox = DummyWidget

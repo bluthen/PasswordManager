@@ -100,9 +100,15 @@ class Document:
             delim = "\t"
         else:
             delim = Config().getCSVDelimiter()
-        if Config().getCSVQuoteCheck() and len(Config().getCSVQuote()) == 1:
+            if not delim or len(str(delim)) != 1:
+                delim = ","
+        quote_char = Config().getCSVQuote()
+        if not quote_char or len(str(quote_char)) != 1:
+            quote_char = '"'
+
+        if Config().getCSVQuoteCheck():
             csvReader = csv.reader(
-                f, delimiter=delim, quotechar=Config().getCSVQuote(), escapechar="\\"
+                f, delimiter=delim, quotechar=quote_char, escapechar="\\"
             )
         else:
             csvReader = csv.reader(
@@ -122,9 +128,15 @@ class Document:
             delim = "\t"
         else:
             delim = str(Config().getCSVDelimiter())
-        if Config().getCSVQuoteCheck() and len(Config().getCSVQuote()) == 1:
+            if not delim or len(str(delim)) != 1:
+                delim = ","
+        quote_char = Config().getCSVQuote()
+        if not quote_char or len(str(quote_char)) != 1:
+            quote_char = '"'
+
+        if Config().getCSVQuoteCheck():
             csvWriter = csv.writer(
-                f, delimiter=delim, quotechar=Config().getCSVQuote(), escapechar="\\"
+                f, delimiter=delim, quotechar=quote_char, escapechar="\\"
             )
         else:
             csvWriter = csv.writer(
@@ -424,6 +436,7 @@ class AdvancedConfigWidget(QtWidgets.QWidget):
         delimiterButtonGroup.addButton(self.delimiterTab)
         delimiterButtonGroup.addButton(self.delimiterOther)
         self.delimiter = QtWidgets.QLineEdit()
+        self.delimiter.setText(",")
         self.delimiter.setEnabled(False)
         cboxLayout.addWidget(self.delimiter, 1, 2)
 
@@ -431,6 +444,7 @@ class AdvancedConfigWidget(QtWidgets.QWidget):
         self.quoteCheck.toggled.connect(self.slotQuoteCheck)
         cboxLayout.addWidget(self.quoteCheck, 2, 0)
         self.quote = QtWidgets.QLineEdit()
+        self.quote.setText('"')
         self.quote.setEnabled(False)
         cboxLayout.addWidget(self.quote, 2, 1, 1, 2)
 
@@ -445,20 +459,36 @@ class AdvancedConfigWidget(QtWidgets.QWidget):
     def readConfig(self):
         self.encCommand.setText(Config().getEncCommand())
         self.decCommand.setText(Config().getDecCommand())
-        self.delimiter.setText(Config().getCSVDelimiter())
-        self.delimiterTab.setChecked(Config().getCSVDelimiterTab())
-        self.quoteCheck.setChecked(Config().getCSVQuoteCheck())
-        self.quote.setText(Config().getCSVQuote())
+        delim = Config().getCSVDelimiter()
+        self.delimiter.setText(delim if delim and delim != "\t" else ",")
+        is_tab = Config().getCSVDelimiterTab()
+        if is_tab:
+            self.delimiterTab.setChecked(True)
+            self.delimiter.setEnabled(False)
+        else:
+            self.delimiterOther.setChecked(True)
+            self.delimiter.setEnabled(True)
+        quote_enabled = Config().getCSVQuoteCheck()
+        self.quoteCheck.setChecked(quote_enabled)
+        self.quote.setEnabled(quote_enabled)
+        quote_char = Config().getCSVQuote()
+        self.quote.setText(quote_char if quote_char else '"')
         self.preOpenCommand.setText(Config().getPreOpenCommand())
         self.postSaveCommand.setText(Config().getPostSaveCommand())
 
     def saveConfig(self):
         Config().setEncCommand(self.encCommand.text())
         Config().setDecCommand(self.decCommand.text())
-        Config().setCSVDelimiter(self.delimiter.text())
+        delim_text = self.delimiter.text().strip()
+        if not delim_text:
+            delim_text = ","
+        Config().setCSVDelimiter(delim_text)
         Config().setCSVDelimiterTab(self.delimiterTab.isChecked())
         Config().setCSVQuoteCheck(self.quoteCheck.isChecked())
-        Config().setCSVQuote(self.quote.text())
+        quote_text = self.quote.text()
+        if not quote_text:
+            quote_text = '"'
+        Config().setCSVQuote(quote_text)
         Config().setPreOpenCommand(self.preOpenCommand.text())
         Config().setPostSaveCommand(self.postSaveCommand.text())
 

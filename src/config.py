@@ -30,10 +30,14 @@ class Config:
                 self.gpgKey = ""
                 self.encCommand = "$g --encrypt --no-tty -r $k -o -"
                 self.decCommand = "$g --no-tty -d $f"
-                self.csvDelimiter = "\t"
+            if not self.csvDelimiter or len(self.csvDelimiter) == 0:
+                self.csvDelimiter = ","
+            if self.csvDelimiterTab is None:
                 self.csvDelimiterTab = True
+            if self.csvQuoteCheck is None:
                 self.csvQuoteCheck = False
-                self.csvQuote = ""
+            if not self.csvQuote or len(self.csvQuote) == 0:
+                self.csvQuote = '"'
 
         def setKey(self, key, value):
             self.con.beginGroup("General Options")
@@ -151,11 +155,18 @@ class Config:
             return self.postSaveCommand
 
         def getCSVDelimiter(self):
+            if (
+                not self.csvDelimiter
+                or len(self.csvDelimiter) == 0
+                or self.csvDelimiter == "\t"
+            ):
+                return ","
             return self.csvDelimiter
 
         def setCSVDelimiter(self, delim):
-            self.csvDelimiter = str(delim)
-            self.setKey("CSVDelimiter", delim)
+            d = str(delim) if delim else ","
+            self.csvDelimiter = d
+            self.setKey("CSVDelimiter", d)
 
         def getCSVDelimiterTab(self):
             return self.csvDelimiterTab
@@ -172,11 +183,14 @@ class Config:
             self.setKey("CSVQuoteCheck", qc)
 
         def getCSVQuote(self):
+            if not self.csvQuote or len(self.csvQuote) == 0:
+                return '"'
             return self.csvQuote
 
         def setCSVQuote(self, quote):
-            self.csvQuote = str(quote)
-            self.setKey("CSVQuote", quote)
+            q = str(quote) if quote else '"'
+            self.csvQuote = q
+            self.setKey("CSVQuote", q)
 
         def getSettingsObj(self):
             return self.con

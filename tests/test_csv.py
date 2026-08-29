@@ -302,6 +302,127 @@ class TestCSVSerialization(unittest.TestCase):
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
 
+    def test_save_and_load_other_delimiter_comma_and_quote(self):
+        saved_storage = {}
+        mock_enc, mock_dec = self._mock_gpg_encrypt_decrypt(saved_storage)
+
+        with tempfile.NamedTemporaryFile(suffix=".gcsv", delete=False) as tmp:
+            tmp_path = tmp.name
+
+        try:
+            with (
+                patch("main.Config") as mock_cfg,
+                patch("main.subprocess.Popen", side_effect=mock_enc),
+            ):
+                cfg = mock_cfg.return_value
+                cfg.getPreOpenCommand.return_value = ""
+                cfg.getPostSaveCommand.return_value = ""
+                cfg.getEncCommand.return_value = "$g --encrypt"
+                cfg.getOpenLast.return_value = False
+                cfg.getCSVDelimiterTab.return_value = False
+                cfg.getCSVDelimiter.return_value = ","
+                cfg.getCSVQuoteCheck.return_value = True
+                cfg.getCSVQuote.return_value = '"'
+
+                self.doc.setData(self.test_entries)
+                self.doc.save(tmp_path)
+
+            load_doc = main.Document()
+            with (
+                patch("main.Config") as mock_cfg,
+                patch("main.subprocess.Popen", side_effect=mock_dec),
+            ):
+                cfg = mock_cfg.return_value
+                cfg.getPreOpenCommand.return_value = ""
+                cfg.getPostSaveCommand.return_value = ""
+                cfg.getDecCommand.return_value = "$g -d $f"
+                cfg.getCSVDelimiterTab.return_value = False
+                cfg.getCSVDelimiter.return_value = ","
+                cfg.getCSVQuoteCheck.return_value = True
+                cfg.getCSVQuote.return_value = '"'
+
+                load_doc.load(tmp_path)
+
+            self.assertEqual(load_doc.getData(), self.test_entries)
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+
+    def test_save_and_load_empty_delimiter_fallback(self):
+        saved_storage = {}
+        mock_enc, mock_dec = self._mock_gpg_encrypt_decrypt(saved_storage)
+
+        with tempfile.NamedTemporaryFile(suffix=".gcsv", delete=False) as tmp:
+            tmp_path = tmp.name
+
+        try:
+            with (
+                patch("main.Config") as mock_cfg,
+                patch("main.subprocess.Popen", side_effect=mock_enc),
+            ):
+                cfg = mock_cfg.return_value
+                cfg.getPreOpenCommand.return_value = ""
+                cfg.getPostSaveCommand.return_value = ""
+                cfg.getEncCommand.return_value = "$g --encrypt"
+                cfg.getOpenLast.return_value = False
+                cfg.getCSVDelimiterTab.return_value = False
+                cfg.getCSVDelimiter.return_value = ""  # Empty should fallback to ','
+                cfg.getCSVQuoteCheck.return_value = True
+                cfg.getCSVQuote.return_value = ""  # Empty should fallback to '"'
+
+                self.doc.setData(self.test_entries)
+                self.doc.save(tmp_path)
+
+            load_doc = main.Document()
+            with (
+                patch("main.Config") as mock_cfg,
+                patch("main.subprocess.Popen", side_effect=mock_dec),
+            ):
+                cfg = mock_cfg.return_value
+                cfg.getPreOpenCommand.return_value = ""
+                cfg.getPostSaveCommand.return_value = ""
+                cfg.getDecCommand.return_value = "$g -d $f"
+                cfg.getCSVDelimiterTab.return_value = False
+                cfg.getCSVDelimiter.return_value = ""
+                cfg.getCSVQuoteCheck.return_value = True
+                cfg.getCSVQuote.return_value = ""
+
+                load_doc.load(tmp_path)
+
+            self.assertEqual(load_doc.getData(), self.test_entries)
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+
+    def test_advanced_config_widget_delimiter_and_quote(self):
+        with patch("main.Config") as mock_cfg:
+            cfg = mock_cfg.return_value
+            cfg.getEncCommand.return_value = "enc"
+            cfg.getDecCommand.return_value = "dec"
+            cfg.getCSVDelimiter.return_value = ";"
+            cfg.getCSVDelimiterTab.return_value = False
+            cfg.getCSVQuoteCheck.return_value = True
+            cfg.getCSVQuote.return_value = '"'
+            cfg.getPreOpenCommand.return_value = ""
+            cfg.getPostSaveCommand.return_value = ""
+
+            adv = main.AdvancedConfigWidget()
+            adv.readConfig()
+
+            self.assertEqual(adv.delimiter.text(), ";")
+            self.assertTrue(adv.delimiterOther.isChecked())
+            self.assertTrue(adv.quoteCheck.isChecked())
+            self.assertEqual(adv.quote.text(), '"')
+
+            # Test changing values and saving
+            adv.delimiter.setText(",")
+            adv.saveConfig()
+
+            cfg.setCSVDelimiter.assert_called_with(",")
+            cfg.setCSVDelimiterTab.assert_called_with(False)
+            cfg.setCSVQuoteCheck.assert_called_with(True)
+            cfg.setCSVQuote.assert_called_with('"')
+
 
 if __name__ == "__main__":
     unittest.main()
