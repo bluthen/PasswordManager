@@ -591,7 +591,7 @@ class FindDialog(DialogBase):
                     if self.document.getData()[i][c].find(f) >= 0:
                         found = True
                 else:
-                    if self.document.getData()[i][c].lower().find(f) >= 0:
+                    if self.document.getData()[i][c].lower().find(f.lower()) >= 0:
                         found = True
                 if found:
                     self.table.selectRow(i)
