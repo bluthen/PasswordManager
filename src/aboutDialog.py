@@ -5,17 +5,20 @@ from simpleDialogs import DialogBase
 
 class AboutDialog(DialogBase):
     def __init__(self, parent):
-        DialogBase.__init__(self, "About PasswordManager", cancel=True, parent=parent, modal=True)
+        DialogBase.__init__(
+            self, "About PasswordManager", cancel=True, parent=parent, modal=True
+        )
         w = QtWidgets.QWidget()
         layout = QtWidgets.QVBoxLayout(w)
-        label1 = QtWidgets.QLabel("PasswordManager 0.05")
+        label1 = QtWidgets.QLabel("PasswordManager 1.0.0")
         label1.font().setPointSize(label1.font().pointSize() * 2)
         label1.font().setBold(True)
         layout.addWidget(label1)
         tabWidget = QtWidgets.QTabWidget()
         layout.addWidget(tabWidget)
         aboutLabel = QtWidgets.QLabel(
-            "\n\nPasswordManager software\n\nCopyright (C) 2010,2020,2022,2023 Russell Valentine\n\nruss@coldstonelabs.org")
+            "\n\nPasswordManager software\n\nCopyright (C) 2010,2020,2022,2023 Russell Valentine\n\nruss@coldstonelabs.org"
+        )
         aboutLabel.setAlignment(QtCore.Qt.AlignHCenter)
         tabWidget.addTab(aboutLabel, "About")
         licenseWidget = LicenseWidget()

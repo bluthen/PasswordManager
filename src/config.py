@@ -2,10 +2,10 @@ from PyQt5 import QtCore
 
 
 class Config:
-    """ config singleton """
+    """config singleton"""
 
     class __impl:
-        """ Implementation of the singleton interface """
+        """Implementation of the singleton interface"""
 
         def __init__(self):
             self.con = QtCore.QSettings("ColdstoneLabs", "passwordManager")
@@ -29,11 +29,15 @@ class Config:
                 self.gpgPath = "/usr/bin/gpg2"
                 self.gpgKey = ""
                 self.encCommand = "$g --encrypt --no-tty -r $k -o -"
-                self.decCommand = "$g --no-tty -d $f"
-                self.csvDelimiter = "\t"
+                self.decCommand = "$g --no-tty -d -- $f"
+            if not self.csvDelimiter or len(self.csvDelimiter) == 0:
+                self.csvDelimiter = ","
+            if self.csvDelimiterTab is None:
                 self.csvDelimiterTab = True
+            if self.csvQuoteCheck is None:
                 self.csvQuoteCheck = False
-                self.csvQuote = ""
+            if not self.csvQuote or len(self.csvQuote) == 0:
+                self.csvQuote = '"'
 
         def setKey(self, key, value):
             self.con.beginGroup("General Options")
@@ -84,6 +88,15 @@ class Config:
 
         def setGeometryH2(self, size):
             self.setKey("GeometryH2", size)
+
+        def getGeometryH3(self):
+            size = self.getKey("GeometryH3", int)
+            if size < 10:
+                return 100
+            return size
+
+        def setGeometryH3(self, size):
+            self.setKey("GeometryH3", size)
 
         def getOpenLast(self):
             return self.openLast
@@ -142,11 +155,18 @@ class Config:
             return self.postSaveCommand
 
         def getCSVDelimiter(self):
+            if (
+                not self.csvDelimiter
+                or len(self.csvDelimiter) == 0
+                or self.csvDelimiter == "\t"
+            ):
+                return ","
             return self.csvDelimiter
 
         def setCSVDelimiter(self, delim):
-            self.csvDelimiter = str(delim)
-            self.setKey("CSVDelimiter", delim)
+            d = str(delim) if delim else ","
+            self.csvDelimiter = d
+            self.setKey("CSVDelimiter", d)
 
         def getCSVDelimiterTab(self):
             return self.csvDelimiterTab
@@ -163,11 +183,14 @@ class Config:
             self.setKey("CSVQuoteCheck", qc)
 
         def getCSVQuote(self):
+            if not self.csvQuote or len(self.csvQuote) == 0:
+                return '"'
             return self.csvQuote
 
         def setCSVQuote(self, quote):
-            self.csvQuote = str(quote)
-            self.setKey("CSVQuote", quote)
+            q = str(quote) if quote else '"'
+            self.csvQuote = q
+            self.setKey("CSVQuote", q)
 
         def getSettingsObj(self):
             return self.con
@@ -176,19 +199,19 @@ class Config:
     __instance = None
 
     def __init__(self):
-        """ Create singleton instance """
+        """Create singleton instance"""
         # Check whether we already have an instance
         if Config.__instance is None:
             # Create and remember instance
             Config.__instance = Config.__impl()
 
         # Store instance reference as the only member in the handle
-        self.__dict__['_Config__instance'] = Config.__instance
+        self.__dict__["_Config__instance"] = Config.__instance
 
     def __getattr__(self, attr):
-        """ Delegate access to implementation """
+        """Delegate access to implementation"""
         return getattr(self.__instance, attr)
 
     def __setattr__(self, attr, value):
-        """ Delegate access to implementation """
+        """Delegate access to implementation"""
         return setattr(self.__instance, attr, value)

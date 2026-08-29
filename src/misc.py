@@ -4,23 +4,34 @@ from config import Config
 
 
 def replace_gpg_symbols(gpglist, filename=""):
+    gpg_path = Config().getGPGPath()
+    gpg_key = Config().getGPGKey()
+    fname = filename if filename is not None else ""
     for i in range(len(gpglist)):
         if gpglist[i] == "$g":
-            gpglist[i] = Config().getGPGPath()
-        elif gpglist[i] == "$f":
-            gpglist[i] = filename
-        elif gpglist[i] == "$k":
-            gpglist[i] = Config().getGPGKey()
+            gpglist[i] = gpg_path
+        elif "$g" in gpglist[i]:
+            gpglist[i] = gpglist[i].replace("$g", gpg_path)
+        if gpglist[i] == "$f":
+            gpglist[i] = fname
+        elif "$f" in gpglist[i]:
+            gpglist[i] = gpglist[i].replace("$f", fname)
+        if gpglist[i] == "$k":
+            gpglist[i] = gpg_key
+        elif "$k" in gpglist[i]:
+            gpglist[i] = gpglist[i].replace("$k", gpg_key)
 
 
 def replace_open_save_symbols(commandlist, filename=""):
-    dirname = os.path.dirname(os.path.abspath(filename))
+    dirname = os.path.dirname(os.path.abspath(filename)) if filename else ""
+    fname = filename if filename is not None else ""
     for i in range(len(commandlist)):
         if commandlist[i] == "$f":
-            commandlist[i] = filename
+            commandlist[i] = fname
+        elif "$f" in commandlist[i]:
+            commandlist[i] = commandlist[i].replace("$f", fname)
         if "$d" in commandlist[i]:
             commandlist[i] = commandlist[i].replace("$d", dirname)
-
 
 
 def get_extension(filename):
@@ -42,16 +53,20 @@ class URL:
     def set_fullpath(self, path):
         self.fullpath = str(path)
         idx = self.fullpath.rfind(os.sep)
-        print(path, idx)
         if len(self.fullpath) > idx >= 0:
-            self.filename = self.fullpath[idx + 1:]
+            self.filename = self.fullpath[idx + 1 :]
+        elif self.fullpath:
+            self.filename = self.fullpath
         else:
             raise Exception("Couldn't extract filename from full path.")
         self.ext = get_extension(self.filename)
 
     def set_filename(self, filename):
         idx = self.fullpath.rfind(os.sep)
-        fp = self.fullpath[:idx + 1] + filename
+        if idx >= 0:
+            fp = self.fullpath[: idx + 1] + filename
+        else:
+            fp = filename
         self.set_fullpath(fp)
 
     def get_filename(self):

@@ -1,56 +1,73 @@
-import random
+import secrets
+import string
 
-checklist = {"alpha": False, "special": False, "number": False, "upAlpha": False}
+SPECIAL_CHARS = [
+    "~",
+    "!",
+    "@",
+    "#",
+    "$",
+    "%",
+    "^",
+    "&",
+    "*",
+    "(",
+    ")",
+    "-",
+    "+",
+    "{",
+    "}",
+    "_",
+    "=",
+    "?",
+    ",",
+    ".",
+    ":",
+]
+LOWERCASE_CHARS = list(string.ascii_lowercase)
+UPPERCASE_CHARS = list(string.ascii_uppercase)
+DIGIT_CHARS = list(string.digits)
 
 
 def gen_alpha():
-    return chr(random.randrange(97, 123))
+    return secrets.choice(LOWERCASE_CHARS)
 
 
 def gen_special():
-    special = ["~", "!", "@", "#", "$", "%", "^", "&", "*", "(", ")", "-", "+", "{", "}", "_", "=", "?", ",", ".", ":"]
-    return special[random.randrange(0, 21)]
+    return secrets.choice(SPECIAL_CHARS)
 
 
 def gen_number():
-    return random.randrange(0, 10)
+    return secrets.choice(DIGIT_CHARS)
 
 
 def gen_up_alpha():
-    return chr(random.randrange(65, 91))
+    return secrets.choice(UPPERCASE_CHARS)
 
 
-def generate_password():
-    done = False
-    password = ""
-    while not done:
-        if len(password) > 8:
-            if not checklist["alpha"]:
-                checklist["alpha"] = True
-                password += gen_alpha()
-            elif not checklist["special"]:
-                checklist["special"] = True
-                password += gen_special()
-            elif not checklist["number"]:
-                checklist["number"] = True
-                password += str(gen_number())
-            elif not checklist["upAlpha"]:
-                checklist["upAlpha"] = True
-                password += gen_up_alpha()
-            else:
-                done = True
-        else:
-            ptype = random.randrange(0, 4)
-            if ptype == 0:
-                checklist["alpha"] = True
-                password += gen_alpha()
-            if ptype == 1:
-                checklist["special"] = True
-                password += gen_special()
-            if ptype == 2:
-                checklist["number"] = True
-                password += str(gen_number())
-            if ptype == 3:
-                checklist["upAlpha"] = True
-                password += gen_up_alpha()
-    return password
+def generate_password(length=16):
+    """Generate a cryptographically secure random password.
+
+    Guarantees at least one lowercase, one uppercase, one number, and one special char,
+    with minimum length of 16 characters by default.
+    """
+    if length < 8:
+        length = 8
+
+    password_chars = [
+        gen_alpha(),
+        gen_up_alpha(),
+        gen_number(),
+        gen_special(),
+    ]
+
+    all_chars = LOWERCASE_CHARS + UPPERCASE_CHARS + DIGIT_CHARS + SPECIAL_CHARS
+    while len(password_chars) < length:
+        password_chars.append(secrets.choice(all_chars))
+
+    # Cryptographically secure shuffle using Fisher-Yates
+    for i in range(len(password_chars) - 1, 0, -1):
+        j = secrets.randbelow(i + 1)
+        password_chars[i], password_chars[j] = password_chars[j], password_chars[i]
+
+    return "".join(password_chars)
